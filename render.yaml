@@ -5,9 +5,8 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @panel/shared build && pnpm --filter api build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @panel/shared build && pnpm --filter api build && pnpm --filter api db:deploy
     startCommand: node apps/api/dist/main.js
-    preDeployCommand: pnpm --filter api db:deploy
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
