@@ -1,0 +1,174 @@
+// Modelo de datos del panel. Genérico para cualquier e-commerce:
+// categorías jerárquicas, marcas, productos con opciones/variantes y ventas.
+// Sin stock ni pasarela de pagos (fuera de alcance según la consigna).
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  moduleFormat           = "esm"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sales Sale[]
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  position  Int      @default(0)
+  parentId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Restrict: no se puede borrar una categoría con subcategorías (la API devuelve 409 con un mensaje claro).
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@index([parentId])
+  @@index([position])
+}
+
+model Brand {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+}
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  name        String
+  slug        String        @unique
+  description String?
+  price       Decimal       @db.Decimal(12, 2)
+  sku         String?       @unique
+  status      ProductStatus @default(ACTIVE)
+  images      String[]
+  categoryId  String?
+  brandId     String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  category  Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand     Brand?           @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  options   ProductOption[]
+  variants  ProductVariant[]
+  saleItems SaleItem[]
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([status])
+  @@index([name])
+}
+
+/// Característica configurable del producto (ej: Color, Talla).
+model ProductOption {
+  id        String   @id @default(cuid())
+  productId String
+  name      String
+  position  Int      @default(0)
+  values    String[]
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, name])
+}
+
+/// Combinación concreta de valores de opciones. Precio opcional: si es null hereda el del producto.
+model ProductVariant {
+  id        String   @id @default(cuid())
+  productId String
+  sku       String   @unique
+  price     Decimal? @db.Decimal(12, 2)
+  /// { "Color": "Rojo", "Talla": "42" }
+  options   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  saleItems SaleItem[]
+
+  @@index([productId])
+}
+
+enum SaleStatus {
+  PENDING
+  PAID
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+/// Informativo: no hay pasarela de pagos.
+enum PaymentMethod {
+  CASH
+  DEBIT_CARD
+  CREDIT_CARD
+  TRANSFER
+  OTHER
+}
+
+model Sale {
+  id            String        @id @default(cuid())
+  number        Int           @unique @default(autoincrement())
+  customerName  String
+  customerEmail String?
+  status        SaleStatus    @default(PENDING)
+  paymentMethod PaymentMethod @default(CASH)
+  notes         String?
+  total         Decimal       @db.Decimal(12, 2)
+  createdById   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  createdBy User?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items     SaleItem[]
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+/// Snapshot del producto al momento de la venta: si luego cambia el precio
+/// o se elimina el producto, el histórico de ventas no se altera.
+model SaleItem {
+  id           String  @id @default(cuid())
+  saleId       String
+  productId    String?
+  variantId    String?
+  productName  String
+  variantLabel String?
+  unitPrice    Decimal @db.Decimal(12, 2)
+  quantity     Int
+  subtotal     Decimal @db.Decimal(12, 2)
+
+  sale    Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([productId])
+}

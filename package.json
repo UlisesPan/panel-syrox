@@ -1,0 +1,25 @@
+{
+  "name": "panel-syrox",
+  "private": true,
+  "description": "Panel administrativo genérico y reutilizable para e-commerce",
+  "packageManager": "pnpm@12.21.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:up": "docker compose up -d db",
+    "db:migrate": "pnpm --filter api db:migrate",
+    "db:seed": "pnpm --filter api db:seed",
+    "db:studio": "pnpm --filter api db:studio",
+    "setup": "pnpm install && pnpm --filter @panel/shared build && pnpm db:migrate && pnpm db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.13",
+    "typescript": "^6.0.2"
+  }
+}

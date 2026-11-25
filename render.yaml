@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: panel-syrox-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: .
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @panel/shared build && pnpm --filter api build
+    startCommand: node apps/api/dist/main.js
+    preDeployCommand: pnpm --filter api db:deploy
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_POOL_MAX
+        value: "10"
+      - key: PORT
+        value: "4000"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "8h"
+      - key: JWT_REMEMBER_EXPIRES_IN
+        value: "30d"
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
