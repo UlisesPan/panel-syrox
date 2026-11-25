@@ -1,14 +1,15 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import { loginSchema, type SessionUser } from '@panel/shared';
+import { changePasswordSchema, loginSchema, type SessionUser } from '@panel/shared';
 import type { z } from 'zod';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { Env } from '../config/env.js';
 import type { JwtPayload } from './auth.constants.js';
 
 type LoginDto = z.output<typeof loginSchema>;
+type ChangePasswordDto = z.output<typeof changePasswordSchema>;
 
 // Cuando el usuario no existe igual se compara contra un hash real,
 // así el tiempo de respuesta no revela qué emails están registrados.
@@ -36,6 +37,20 @@ export class AuthService {
 
     const sessionUser: SessionUser = { id: user.id, email: user.email, name: user.name };
     return { token, expiresAt: new Date(exp * 1000), user: sessionUser };
+  }
+
+  async changePassword(userId: string, { currentPassword, newPassword }: ChangePasswordDto): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      throw new BadRequestException({
+        message: 'La contraseña actual no es correcta.',
+        errors: [{ path: 'currentPassword', message: 'La contraseña actual no es correcta.' }],
+      });
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: await AuthService.hashPassword(newPassword) },
+    });
   }
 
   static hashPassword(password: string) {

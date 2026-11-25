@@ -18,7 +18,7 @@ import { PageHeader } from "@/components/crud/page-header";
 import { useResourceMutations } from "@/hooks/use-resource";
 import { formatCurrency } from "@/lib/format";
 import { handleFormError } from "@/lib/form-errors";
-import { paymentMethodLabels, toOptions } from "@/lib/labels";
+import { paymentMethodLabels, paymentStatusMeta, toOptions } from "@/lib/labels";
 import { ProductPicker } from "./product-picker";
 import { salesResource } from "./sales.resource";
 
@@ -39,7 +39,10 @@ export function NewSaleForm() {
     defaultValues: {
       customerName: "",
       customerEmail: null,
+      customerPhone: null,
+      shippingAddress: null,
       paymentMethod: "CASH",
+      paymentStatus: "PENDING",
       notes: null,
       items: [emptyItem],
     },
@@ -191,7 +194,7 @@ export function NewSaleForm() {
 
         <Card className="h-fit lg:sticky lg:top-20">
           <CardHeader>
-            <CardTitle>Cliente y pago</CardTitle>
+            <CardTitle>Cliente, envío y pago</CardTitle>
           </CardHeader>
           <CardContent>
             <FieldGroup>
@@ -212,13 +215,45 @@ export function NewSaleForm() {
                   />
                 )}
               />
-              <SelectField
+              <FormField
                 control={form.control}
-                name="paymentMethod"
-                label="Medio de pago"
-                options={toOptions(paymentMethodLabels)}
-                description="Solo informativo: no se procesan pagos."
+                name="customerPhone"
+                label="Teléfono"
+                render={(f, { id, invalid }) => (
+                  <Input
+                    {...f}
+                    id={id}
+                    type="tel"
+                    autoComplete="tel"
+                    placeholder="55 1234 5678"
+                    value={f.value ?? ""}
+                    onChange={(e) => f.onChange(e.target.value === "" ? null : e.target.value)}
+                    aria-invalid={invalid}
+                  />
+                )}
               />
+              <TextareaField
+                control={form.control}
+                name="shippingAddress"
+                label="Dirección de envío"
+                placeholder="Calle, número, colonia, ciudad, CP"
+                rows={2}
+              />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                <SelectField
+                  control={form.control}
+                  name="paymentMethod"
+                  label="Medio de pago"
+                  options={toOptions(paymentMethodLabels)}
+                />
+                <SelectField
+                  control={form.control}
+                  name="paymentStatus"
+                  label="Estado del pago"
+                  options={toOptions(paymentStatusMeta)}
+                />
+              </div>
+              <p className="-mt-2 text-xs text-muted-foreground">Solo informativo: no se procesan pagos.</p>
               <TextareaField control={form.control} name="notes" label="Notas" rows={2} />
             </FieldGroup>
           </CardContent>

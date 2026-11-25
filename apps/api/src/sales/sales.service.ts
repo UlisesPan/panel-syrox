@@ -2,9 +2,11 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import {
   saleFiltersSchema,
   saleInputSchema,
+  saleStatusUpdateSchema,
   variantLabel,
   type ListQuery,
   type Paginated,
+  type PaymentStatus,
   type Sale,
   type SaleDetail,
   type SaleStatus,
@@ -17,6 +19,7 @@ import { paginationArgs, resolveOrderBy, toPaginated } from '../common/http/pagi
 import { toMoney } from '../common/utils/decimal.js';
 
 type SaleDto = z.output<typeof saleInputSchema>;
+type SaleStatusDto = z.output<typeof saleStatusUpdateSchema>;
 type SaleListQuery = ListQuery & z.output<typeof saleFiltersSchema>;
 
 /** Estados finales: una venta entregada o cancelada ya no cambia. */
@@ -27,6 +30,10 @@ const detailInclude = {
   ...listInclude,
   items: true,
   createdBy: { select: { id: true, name: true } },
+  statusHistory: {
+    orderBy: { createdAt: 'desc' },
+    include: { changedBy: { select: { id: true, name: true } } },
+  },
 } satisfies Prisma.SaleInclude;
 
 type SaleRow = Prisma.SaleGetPayload<{ include: typeof listInclude }>;
@@ -37,8 +44,12 @@ export const toSaleDto = (s: SaleRow): Sale => ({
   number: s.number,
   customerName: s.customerName,
   customerEmail: s.customerEmail,
+  customerPhone: s.customerPhone,
+  shippingAddress: s.shippingAddress,
+  trackingNumber: s.trackingNumber,
   status: s.status,
   paymentMethod: s.paymentMethod,
+  paymentStatus: s.paymentStatus,
   notes: s.notes,
   total: toMoney(s.total),
   itemsCount: s._count.items,
@@ -57,6 +68,13 @@ const toDetailDto = (s: SaleDetailRow): SaleDetail => ({
     unitPrice: toMoney(i.unitPrice),
     quantity: i.quantity,
     subtotal: toMoney(i.subtotal),
+  })),
+  statusHistory: s.statusHistory.map((h) => ({
+    id: h.id,
+    status: h.status,
+    note: h.note,
+    changedBy: h.changedBy,
+    createdAt: h.createdAt.toISOString(),
   })),
 });
 
@@ -84,6 +102,7 @@ export class SalesService {
         customerName: (dir) => ({ customerName: dir }),
         total: (dir) => ({ total: dir }),
         status: (dir) => ({ status: dir }),
+        paymentStatus: (dir) => ({ paymentStatus: dir }),
         createdAt: (dir) => ({ createdAt: dir }),
       },
       { createdAt: 'desc' },
@@ -148,11 +167,15 @@ export class SalesService {
         data: {
           customerName: dto.customerName,
           customerEmail: dto.customerEmail,
+          customerPhone: dto.customerPhone,
+          shippingAddress: dto.shippingAddress,
           paymentMethod: dto.paymentMethod,
+          paymentStatus: dto.paymentStatus,
           notes: dto.notes,
           total,
           createdById: user.id,
           items: { create: items },
+          statusHistory: { create: { status: 'PENDING', changedById: user.id } },
         },
         include: detailInclude,
       });
@@ -160,13 +183,33 @@ export class SalesService {
     return toDetailDto(sale);
   }
 
-  async updateStatus(id: string, status: SaleStatus): Promise<SaleDetail> {
-    const sale = await this.prisma.sale.findUnique({ where: { id }, select: { status: true } });
+  async updateStatus(id: string, dto: SaleStatusDto, user: SessionUser): Promise<SaleDetail> {
+    const sale = await this.prisma.sale.findUnique({ where: { id }, select: { status: true, paymentStatus: true } });
     if (!sale) throw new NotFoundException('La venta no existe.');
     if (FINAL_STATUSES.includes(sale.status)) {
       throw new BadRequestException('La venta ya está finalizada y no puede cambiar de estado.');
     }
-    const updated = await this.prisma.sale.update({ where: { id }, data: { status }, include: detailInclude });
+    if (dto.status === sale.status) {
+      throw new BadRequestException('La venta ya está en ese estado.');
+    }
+    const updated = await this.prisma.sale.update({
+      where: { id },
+      data: {
+        status: dto.status,
+        // Marcar la venta como pagada actualiza el pago si todavía figuraba pendiente.
+        ...(dto.status === 'PAID' && sale.paymentStatus === 'PENDING' && { paymentStatus: 'PAID' as const }),
+        ...(dto.trackingNumber && { trackingNumber: dto.trackingNumber }),
+        statusHistory: { create: { status: dto.status, note: dto.note, changedById: user.id } },
+      },
+      include: detailInclude,
+    });
+    return toDetailDto(updated);
+  }
+
+  async updatePaymentStatus(id: string, paymentStatus: PaymentStatus): Promise<SaleDetail> {
+    const sale = await this.prisma.sale.findUnique({ where: { id }, select: { id: true } });
+    if (!sale) throw new NotFoundException('La venta no existe.');
+    const updated = await this.prisma.sale.update({ where: { id }, data: { paymentStatus }, include: detailInclude });
     return toDetailDto(updated);
   }
 }

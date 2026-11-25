@@ -1,6 +1,6 @@
 # Panel Admin · E-commerce
 
-Panel de administración **genérico y reutilizable** para cualquier e-commerce: login, dashboard, categorías, marcas, productos (con opciones y variantes) y ventas.
+Panel de administración **genérico y reutilizable** para cualquier e-commerce: login, dashboard, categorías, marcas, productos (con opciones y variantes), ventas (con seguimiento de envío e historial), clientes y configuración.
 
 **Stack:** NestJS 12 · Prisma 7 · PostgreSQL · Next.js 16 · React 19 · TailwindCSS 4 · shadcn/ui · TanStack Query · Zod 4 · Turborepo + pnpm.
 
@@ -33,7 +33,7 @@ pnpm dev                                       # API :4000 · Web :3000
 
 ```
 apps/
-  api/        NestJS: un módulo por dominio (auth, categories, brands, products, sales, dashboard)
+  api/        NestJS: un módulo por dominio (auth, categories, brands, products, sales, customers, dashboard)
   web/        Next.js App Router
 packages/
   shared/     Schemas Zod + tipos + utilidades compartidas por api y web
@@ -76,7 +76,9 @@ nombre, logo, color de marca, moneda y locale. El resto del panel es 100% genér
 - **Precios con `Decimal(12,2)`**, nunca `float`.
 - **Ventas con snapshot:** cada ítem guarda nombre, variante y precio al momento de la venta. Si después cambia el precio o se elimina el producto, el histórico no se altera.
 - **Los precios de una venta se calculan siempre en el servidor**, dentro de una transacción. El total del front es solo una previsualización.
-- **Las ventas no se eliminan:** se cancelan. Entregadas y canceladas son estados finales.
+- **Las ventas no se eliminan:** se cancelan. Entregadas y canceladas son estados finales. Cada cambio de estado queda en un historial (fecha, usuario y nota opcional).
+- **Marca obligatoria:** todo producto pertenece a una marca; al eliminar una marca se eliminan sus productos (las ventas conservan su snapshot).
+- **Clientes sin tabla propia:** se derivan de las ventas agrupando por email (o nombre), así no hay datos duplicados que mantener sincronizados.
 - **Orden por lista blanca:** cada recurso declara por qué columnas se puede ordenar (`resolveOrderBy`).
 - **Errores normalizados:** un filtro global devuelve siempre `{ statusCode, message, errors? }`. Los errores por campo se muestran en el input correspondiente.
 - **Categorías jerárquicas** con prevención de ciclos y bloqueo de borrado si tienen subcategorías.
@@ -95,7 +97,9 @@ Contraseñas con bcrypt · comparación en tiempo constante aunque el usuario no
 - Dashboard: ingresos, ventas, ticket promedio, gráfico de 30 días, más vendidos
 - Paleta de comandos (`Ctrl/⌘ + K`)
 - Filtros y búsqueda con debounce, todo reflejado en la URL
-- Detalle de venta en panel lateral, con cambio de estado
+- "Gestionar venta": progreso del pedido, datos de cliente/pago/envío, tracking, historial y acciones según el estado
+- Clientes: pedidos, total gastado y última compra, con acceso directo a sus ventas
+- Configuración: cambio de contraseña y vista de la configuración white-label
 - Responsive, skeletons de carga, estados vacíos y toasts
 - Swagger generado a partir de los schemas Zod
 - Seed determinístico con datos realistas

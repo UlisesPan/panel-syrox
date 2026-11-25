@@ -9,6 +9,7 @@ import { CategoriesModule } from './categories/categories.module.js';
 import { BrandsModule } from './brands/brands.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { SalesModule } from './sales/sales.module.js';
+import { CustomersModule } from './customers/customers.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { HealthController } from './health/health.controller.js';
 
@@ -26,6 +27,7 @@ import { HealthController } from './health/health.controller.js';
     BrandsModule,
     ProductsModule,
     SalesModule,
+    CustomersModule,
     DashboardModule,
   ],
   controllers: [HealthController],

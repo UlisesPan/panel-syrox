@@ -54,7 +54,7 @@ const columns: DataTableColumn<Product>[] = [
     id: "brand",
     header: "Marca",
     sortKey: "brand",
-    cell: (p) => p.brand?.name ?? <span className="text-muted-foreground">—</span>,
+    cell: (p) => p.brand.name,
   },
   {
     id: "price",

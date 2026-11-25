@@ -47,7 +47,7 @@ function toFormValues(product?: ProductDetail): FormValues {
     sku: product?.sku ?? null,
     status: product?.status ?? "ACTIVE",
     categoryId: product?.category?.id ?? null,
-    brandId: product?.brand?.id ?? null,
+    brandId: product?.brand.id ?? "",
     images: product?.images ?? [],
     options: product?.options.map(({ name, values }) => ({ name, values })) ?? [],
     variants: product?.variants.map(({ sku, price, options }) => ({ sku, price, options })) ?? [],
@@ -159,7 +159,8 @@ export function ProductForm({ product }: { product?: ProductDetail }) {
                   name="brandId"
                   label="Marca"
                   options={brands.map((b) => ({ value: b.id, label: b.name }))}
-                  nullableLabel="Sin marca"
+                  placeholder="Seleccioná una marca"
+                  required
                 />
                 <FormActions
                   submitLabel={product ? "Guardar cambios" : "Crear producto"}

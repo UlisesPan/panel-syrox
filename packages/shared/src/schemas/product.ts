@@ -34,7 +34,7 @@ export const productInputSchema = z
     sku: z.string().trim().max(64).nullable().default(null),
     status: z.enum(PRODUCT_STATUSES).default('ACTIVE'),
     categoryId: z.string().min(1).nullable().default(null),
-    brandId: z.string().min(1).nullable().default(null),
+    brandId: z.string({ error: 'Seleccioná una marca' }).min(1, 'Seleccioná una marca'),
     images: z.array(z.url('URL de imagen inválida')).max(8, 'Máximo 8 imágenes').default([]),
     options: z
       .array(productOptionSchema)
@@ -108,7 +108,7 @@ export interface Product {
   status: ProductStatus;
   images: string[];
   category: EntityRef | null;
-  brand: EntityRef | null;
+  brand: EntityRef;
   variantsCount: number;
   createdAt: string;
   updatedAt: string;

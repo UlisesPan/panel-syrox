@@ -1,9 +1,9 @@
-import { Body, Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { CookieOptions, Response } from 'express';
-import { loginSchema, type SessionUser } from '@panel/shared';
+import { changePasswordSchema, loginSchema, type SessionUser } from '@panel/shared';
 import type { z } from 'zod';
 import type { Env } from '../config/env.js';
 import { AuthService } from './auth.service.js';
@@ -44,6 +44,17 @@ export class AuthController {
   @ApiOperation({ summary: 'Usuario de la sesión actual' })
   me(@CurrentUser() user: SessionUser) {
     return { user };
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Patch('password')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Cambia la contraseña del usuario de la sesión' })
+  changePassword(
+    @Body({ schema: changePasswordSchema }) dto: z.output<typeof changePasswordSchema>,
+    @CurrentUser() user: SessionUser,
+  ) {
+    return this.auth.changePassword(user.id, dto);
   }
 
   private cookieOptions(): CookieOptions {

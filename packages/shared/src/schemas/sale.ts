@@ -10,6 +10,18 @@ export type SaleStatus = (typeof SALE_STATUSES)[number];
 export const PAYMENT_METHODS = ['CASH', 'DEBIT_CARD', 'CREDIT_CARD', 'TRANSFER', 'OTHER'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+export const PAYMENT_STATUSES = ['PENDING', 'PAID', 'FAILED', 'REFUNDED'] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .nullable()
+    .default(null)
+    .transform((v) => v || null);
+
 export const saleItemInputSchema = z.object({
   productId: z.string().min(1, 'Seleccioná un producto'),
   variantId: z.string().min(1).nullable().default(null),
@@ -19,8 +31,11 @@ export const saleItemInputSchema = z.object({
 export const saleInputSchema = z.object({
   customerName: z.string().trim().min(2, 'Ingresá el nombre del cliente').max(120),
   customerEmail: z.email('Correo inválido').nullable().default(null),
+  customerPhone: optionalText(30),
+  shippingAddress: optionalText(300),
   paymentMethod: z.enum(PAYMENT_METHODS).default('CASH'),
-  notes: z.string().trim().max(500).nullable().default(null),
+  paymentStatus: z.enum(PAYMENT_STATUSES).default('PENDING'),
+  notes: optionalText(500),
   items: z
     .array(saleItemInputSchema)
     .min(1, 'Agregá al menos un producto')
@@ -29,6 +44,13 @@ export const saleInputSchema = z.object({
 
 export const saleStatusUpdateSchema = z.object({
   status: z.enum(SALE_STATUSES),
+  note: optionalText(500),
+  /** Solo se guarda si viene informado (ej: al marcar la venta como enviada). */
+  trackingNumber: optionalText(100),
+});
+
+export const salePaymentUpdateSchema = z.object({
+  paymentStatus: z.enum(PAYMENT_STATUSES),
 });
 
 /** Filtros adicionales del listado de ventas (se suman al listQuerySchema). */
@@ -38,6 +60,7 @@ export const saleFiltersSchema = z.object({
 
 export type SaleInput = z.input<typeof saleInputSchema>;
 export type SaleItemInput = z.input<typeof saleItemInputSchema>;
+export type SaleStatusUpdateInput = z.input<typeof saleStatusUpdateSchema>;
 
 export interface SaleItem {
   id: string;
@@ -55,8 +78,12 @@ export interface Sale {
   number: number;
   customerName: string;
   customerEmail: string | null;
+  customerPhone: string | null;
+  shippingAddress: string | null;
+  trackingNumber: string | null;
   status: SaleStatus;
   paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
   notes: string | null;
   total: number;
   itemsCount: number;
@@ -73,7 +100,17 @@ export interface SaleProductOption {
   variants: Array<{ id: string; sku: string; label: string; price: number }>;
 }
 
+export interface SaleStatusChange {
+  id: string;
+  status: SaleStatus;
+  note: string | null;
+  changedBy: { id: string; name: string } | null;
+  createdAt: string;
+}
+
 export interface SaleDetail extends Sale {
   items: SaleItem[];
   createdBy: { id: string; name: string } | null;
+  /** Más reciente primero. */
+  statusHistory: SaleStatusChange[];
 }

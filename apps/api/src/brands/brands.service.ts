@@ -65,7 +65,7 @@ export class BrandsService {
     return toDto(await this.prisma.brand.update({ where: { id }, data: { ...dto, slug }, include }));
   }
 
-  /** Los productos de la marca quedan "sin marca" (onDelete: SetNull). */
+  /** Borra también sus productos (onDelete: Cascade); las ventas conservan su snapshot. */
   async remove(id: string): Promise<void> {
     await this.findOne(id);
     await this.prisma.brand.delete({ where: { id } });

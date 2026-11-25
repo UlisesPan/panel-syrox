@@ -1,4 +1,4 @@
-import type { PaymentMethod, ProductStatus, SaleStatus } from "@panel/shared";
+import type { PaymentMethod, PaymentStatus, ProductStatus, SaleStatus } from "@panel/shared";
 
 type BadgeVariant = "success" | "info" | "warning" | "violet" | "destructive" | "secondary" | "outline";
 
@@ -16,6 +16,13 @@ export const productStatusMeta: Record<ProductStatus, { label: string; variant: 
   ACTIVE: { label: "Activo", variant: "success" },
   DRAFT: { label: "Borrador", variant: "warning" },
   ARCHIVED: { label: "Archivado", variant: "secondary" },
+};
+
+export const paymentStatusMeta: Record<PaymentStatus, { label: string; variant: BadgeVariant }> = {
+  PENDING: { label: "Pendiente", variant: "warning" },
+  PAID: { label: "Pagado", variant: "success" },
+  FAILED: { label: "Fallido", variant: "destructive" },
+  REFUNDED: { label: "Reembolsado", variant: "secondary" },
 };
 
 export const paymentMethodLabels: Record<PaymentMethod, string> = {

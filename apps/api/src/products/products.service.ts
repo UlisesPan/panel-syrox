@@ -210,7 +210,7 @@ export class ProductsService {
   private async assertRelations(dto: Pick<ProductDto, 'categoryId' | 'brandId'>) {
     const [category, brand] = await Promise.all([
       dto.categoryId ? this.prisma.category.count({ where: { id: dto.categoryId } }) : 1,
-      dto.brandId ? this.prisma.brand.count({ where: { id: dto.brandId } }) : 1,
+      this.prisma.brand.count({ where: { id: dto.brandId } }),
     ]);
     if (!category) throw new BadRequestException('La categoría seleccionada no existe.');
     if (!brand) throw new BadRequestException('La marca seleccionada no existe.');

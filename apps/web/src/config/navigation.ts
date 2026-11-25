@@ -1,4 +1,13 @@
-import { HomeIcon, PackageIcon, ShoppingCartIcon, TagIcon, WorkflowIcon, type LucideIcon } from "lucide-react";
+import {
+  HomeIcon,
+  PackageIcon,
+  SettingsIcon,
+  ShoppingCartIcon,
+  TagIcon,
+  UsersIcon,
+  WorkflowIcon,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface NavItem {
   title: string;
@@ -16,6 +25,8 @@ export const navigation: NavItem[] = [
   { title: "Categorías", href: "/categorias", icon: WorkflowIcon },
   { title: "Marcas", href: "/marcas", icon: TagIcon },
   { title: "Productos", href: "/productos", icon: PackageIcon },
+  { title: "Clientes", href: "/clientes", icon: UsersIcon },
+  { title: "Configuración", href: "/configuracion", icon: SettingsIcon },
 ];
 
 /** Etiquetas para segmentos de URL que no son módulos (breadcrumbs). */

@@ -37,7 +37,13 @@ describe('slugify', () => {
 });
 
 describe('productInputSchema', () => {
-  const base = { name: 'Zapatilla', price: 100 };
+  const base = { name: 'Zapatilla', price: 100, brandId: 'brand-1' };
+
+  it('exige una marca', () => {
+    const result = productInputSchema.safeParse({ name: 'Zapatilla', price: 100 });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((i) => i.path.join('.'))).toContain('brandId');
+  });
 
   it('acepta variantes que corresponden a las opciones', () => {
     const result = productInputSchema.safeParse({

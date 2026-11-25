@@ -11,13 +11,13 @@ import { PageHeader } from "@/components/crud/page-header";
 import { RowActions } from "@/components/crud/row-actions";
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
 import { SearchInput } from "@/components/data-table/search-input";
-import { SaleStatusBadge } from "@/components/status-badge";
+import { PaymentStatusBadge, SaleStatusBadge } from "@/components/status-badge";
 import { useListParams } from "@/hooks/use-list-params";
 import { useResourceList } from "@/hooks/use-resource";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { paymentMethodLabels, saleStatusMeta } from "@/lib/labels";
 import { salesResource } from "./sales.resource";
-import { SaleDetailSheet } from "./sale-detail-sheet";
+import { SaleDetailDialog } from "./sale-detail-dialog";
 
 const ALL = "all";
 
@@ -48,8 +48,14 @@ const columns: DataTableColumn<Sale>[] = [
   },
   {
     id: "payment",
-    header: "Medio de pago",
-    cell: (s) => <span className="text-muted-foreground">{paymentMethodLabels[s.paymentMethod]}</span>,
+    header: "Pago",
+    sortKey: "paymentStatus",
+    cell: (s) => (
+      <div className="flex flex-col items-start gap-1">
+        <PaymentStatusBadge status={s.paymentStatus} />
+        <span className="text-xs text-muted-foreground">{paymentMethodLabels[s.paymentMethod]}</span>
+      </div>
+    ),
   },
   { id: "status", header: "Estado", sortKey: "status", cell: (s) => <SaleStatusBadge status={s.status} /> },
   {
@@ -156,7 +162,7 @@ export function SalesView() {
         </CardContent>
       </Card>
 
-      <SaleDetailSheet saleId={openSaleId ?? null} onClose={() => setParams({ sale: null, page: state.page })} />
+      <SaleDetailDialog saleId={openSaleId ?? null} onClose={() => setParams({ sale: null, page: state.page })} />
     </div>
   );
 }

@@ -67,7 +67,7 @@ export function BrandsView() {
       viewTooltip="Ver productos"
       deleteDescription={(b) =>
         b.productsCount > 0
-          ? `Sus ${b.productsCount} producto(s) quedarán sin marca. Esta acción no se puede deshacer.`
+          ? `También se eliminarán sus ${b.productsCount} producto(s). Las ventas ya registradas no se modifican. Esta acción no se puede deshacer.`
           : "Esta acción no se puede deshacer."
       }
     />

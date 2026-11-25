@@ -2,10 +2,17 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Sale, SaleDetail, SaleInput, SaleProductOption, SaleStatus } from "@panel/shared";
+import type {
+  PaymentStatus,
+  Sale,
+  SaleDetail,
+  SaleInput,
+  SaleProductOption,
+  SaleStatusUpdateInput,
+} from "@panel/shared";
 import { apiFetch, getErrorMessage } from "@/lib/api-client";
 import { defineResource } from "@/lib/resource";
-import { saleStatusMeta } from "@/lib/labels";
+import { paymentStatusMeta, saleStatusMeta } from "@/lib/labels";
 
 export const salesResource = defineResource<Sale, SaleInput, SaleDetail>({
   key: "sales",
@@ -25,13 +32,13 @@ export function useSaleProductOptions(search: string) {
   });
 }
 
-export function useUpdateSaleStatus() {
+function useSaleMutation<TBody extends object>(path: string, successMessage: (sale: SaleDetail) => string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: SaleStatus }) =>
-      apiFetch<SaleDetail>(`/sales/${id}/status`, { method: "PATCH", body: { status } }),
+    mutationFn: ({ id, ...body }: { id: string } & TBody) =>
+      apiFetch<SaleDetail>(`/sales/${id}/${path}`, { method: "PATCH", body }),
     onSuccess: async (sale) => {
-      toast.success(`Venta #${sale.number}: ${saleStatusMeta[sale.status].label.toLowerCase()}`);
+      toast.success(successMessage(sale));
       queryClient.setQueryData(salesResource.queryKeys.detail(sale.id), sale);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: salesResource.queryKeys.all }),
@@ -40,4 +47,18 @@ export function useUpdateSaleStatus() {
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
+}
+
+export function useUpdateSaleStatus() {
+  return useSaleMutation<SaleStatusUpdateInput>(
+    "status",
+    (sale) => `Venta #${sale.number}: ${saleStatusMeta[sale.status].label.toLowerCase()}`,
+  );
+}
+
+export function useUpdatePaymentStatus() {
+  return useSaleMutation<{ paymentStatus: PaymentStatus }>(
+    "payment",
+    (sale) => `Venta #${sale.number}: pago ${paymentStatusMeta[sale.paymentStatus].label.toLowerCase()}`,
+  );
 }

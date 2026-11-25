@@ -9,6 +9,7 @@ export * from './schemas/category.js';
 export * from './schemas/brand.js';
 export * from './schemas/product.js';
 export * from './schemas/sale.js';
+export * from './schemas/customer.js';
 export * from './schemas/dashboard.js';
 export * from './utils/variants.js';
 export * from './utils/slug.js';

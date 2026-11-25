@@ -4,6 +4,7 @@ import {
   listQuerySchema,
   saleFiltersSchema,
   saleInputSchema,
+  salePaymentUpdateSchema,
   saleStatusUpdateSchema,
   type SessionUser,
 } from '@panel/shared';
@@ -40,11 +41,21 @@ export class SalesController {
   }
 
   @Patch(':id/status')
-  @ApiOperation({ summary: 'Cambiar el estado de la venta' })
+  @ApiOperation({ summary: 'Cambiar el estado de la venta (queda registrado en el historial)' })
   updateStatus(
     @Param('id') id: string,
     @Body({ schema: saleStatusUpdateSchema }) dto: z.output<typeof saleStatusUpdateSchema>,
+    @CurrentUser() user: SessionUser,
   ) {
-    return this.sales.updateStatus(id, dto.status);
+    return this.sales.updateStatus(id, dto, user);
+  }
+
+  @Patch(':id/payment')
+  @ApiOperation({ summary: 'Cambiar el estado del pago' })
+  updatePayment(
+    @Param('id') id: string,
+    @Body({ schema: salePaymentUpdateSchema }) dto: z.output<typeof salePaymentUpdateSchema>,
+  ) {
+    return this.sales.updatePaymentStatus(id, dto.paymentStatus);
   }
 }

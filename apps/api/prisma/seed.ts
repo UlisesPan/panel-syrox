@@ -71,12 +71,15 @@ const CUSTOMERS = [
   'Jaime González Correa', 'Santiago Pérez Baglivo', 'María Fernanda López', 'Lucía Martínez', 'Diego Ramírez',
   'Valentina Torres', 'Martín Herrera', 'Camila Rodríguez', 'Joaquín Fernández', 'Sofía Castro',
 ];
+const STREETS = ['Av. Insurgentes Sur', 'Calle Morelos', 'Av. Reforma', 'Calle Juárez', 'Av. Hidalgo'];
+const CITIES = ['CDMX', 'Cuautitlán Izcalli, Edo. Méx.', 'Guadalajara, Jal.', 'Monterrey, N.L.', 'Puebla, Pue.'];
 const STATUS_WEIGHTS: SaleStatus[] = ['DELIVERED', 'DELIVERED', 'DELIVERED', 'SHIPPED', 'SHIPPED', 'PREPARING', 'PAID', 'PENDING', 'CANCELLED'];
 const PAYMENT_METHODS: PaymentMethod[] = ['CASH', 'DEBIT_CARD', 'CREDIT_CARD', 'CREDIT_CARD', 'TRANSFER'];
 
 async function main() {
   console.log('🧹 Limpiando datos…');
   await prisma.$transaction([
+    prisma.saleStatusChange.deleteMany(),
     prisma.saleItem.deleteMany(),
     prisma.sale.deleteMany(),
     prisma.productVariant.deleteMany(),
@@ -171,16 +174,29 @@ async function main() {
       };
     });
     const customerName = pick(CUSTOMERS);
+    const status = pick(STATUS_WEIGHTS);
+    const shipped = status === 'SHIPPED' || status === 'DELIVERED';
+    const later = (hours: number) => new Date(createdAt.getTime() + hours * 3_600_000);
     await prisma.sale.create({
       data: {
         customerName,
         customerEmail: `${slugify(customerName).replace(/-/g, '.')}@mail.com`,
-        status: pick(STATUS_WEIGHTS),
+        customerPhone: `55${between(10_000_000, 99_999_999)}`,
+        shippingAddress: `${pick(STREETS)} ${between(10, 999)}, ${pick(CITIES)}`,
+        trackingNumber: shipped ? String(between(1_000_000_000, 9_999_999_999)) : null,
+        status,
         paymentMethod: pick(PAYMENT_METHODS),
+        paymentStatus: status === 'PENDING' ? 'PENDING' : status === 'CANCELLED' ? 'REFUNDED' : 'PAID',
         total: items.reduce((sum, item) => sum.add(item.subtotal), new Prisma.Decimal(0)),
         createdById: admin.id,
         createdAt,
         items: { create: items },
+        statusHistory: {
+          create: [
+            { status: 'PENDING', changedById: admin.id, createdAt },
+            ...(status === 'PENDING' ? [] : [{ status, changedById: admin.id, createdAt: later(between(2, 48)) }]),
+          ],
+        },
       },
     });
   }
