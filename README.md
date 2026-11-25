@@ -99,7 +99,7 @@ Contraseñas con bcrypt · comparación en tiempo constante aunque el usuario no
 - Filtros y búsqueda con debounce, todo reflejado en la URL
 - "Gestionar venta": progreso del pedido, datos de cliente/pago/envío, tracking, historial y acciones según el estado
 - Clientes: pedidos, total gastado y última compra, con acceso directo a sus ventas
-- Configuración: cambio de contraseña y vista de la configuración white-label
+- Configuración: datos de la cuenta y cambio de contraseña
 - Responsive, skeletons de carga, estados vacíos y toasts
 - Swagger generado a partir de los schemas Zod
 - Seed determinístico con datos realistas

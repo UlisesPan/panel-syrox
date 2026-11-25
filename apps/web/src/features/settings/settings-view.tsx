@@ -1,11 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { KeyRoundIcon, StoreIcon, UserIcon, type LucideIcon } from "lucide-react";
+import { KeyRoundIcon, UserIcon, type LucideIcon } from "lucide-react";
 import { changePasswordSchema, type ChangePasswordInput } from "@panel/shared";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
@@ -13,23 +12,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TextField } from "@/components/form/form-field";
 import { FormActions } from "@/components/form/form-actions";
 import { PageHeader } from "@/components/crud/page-header";
-import { StoreLogo } from "@/components/brand/store-logo";
-import { siteConfig } from "@/config/site";
 import { useSessionUser } from "@/features/auth/use-session";
 import { apiFetch } from "@/lib/api-client";
-import { formatCurrency, formatDateTime, initials } from "@/lib/format";
+import { initials } from "@/lib/format";
 import { handleFormError } from "@/lib/form-errors";
 
 export function SettingsView() {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Configuración" description="Tu cuenta y los datos de la tienda." />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="flex flex-col gap-6">
-          <AccountCard />
-          <ChangePasswordCard />
-        </div>
-        <StoreCard />
+      <PageHeader title="Configuración" description="Datos de tu cuenta y seguridad." />
+      <div className="grid max-w-2xl gap-6">
+        <AccountCard />
+        <ChangePasswordCard />
       </div>
     </div>
   );
@@ -131,42 +125,3 @@ function ChangePasswordCard() {
   );
 }
 
-function StoreCard() {
-  return (
-    <Card className="h-fit">
-      <CardHeader>
-        <SectionTitle icon={StoreIcon} title="Tienda" />
-        <CardDescription>
-          El panel es white-label: estos datos se definen con variables de entorno <code>NEXT_PUBLIC_*</code> al
-          desplegar, sin tocar código.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <dl className="divide-y text-sm">
-          <StoreRow label="Nombre" value={siteConfig.name} />
-          <StoreRow label="Logo" value={<StoreLogo showName={false} />} />
-          <StoreRow
-            label="Color de marca"
-            value={
-              <span className="flex items-center gap-2">
-                <span className="size-5 rounded-md border bg-brand" aria-hidden />
-                <code>{siteConfig.brandColor}</code>
-              </span>
-            }
-          />
-          <StoreRow label="Moneda" value={`${siteConfig.currency} · ej: ${formatCurrency(1234.5)}`} />
-          <StoreRow label="Idioma y región" value={`${siteConfig.locale} · ej: ${formatDateTime(new Date())}`} />
-        </dl>
-      </CardContent>
-    </Card>
-  );
-}
-
-function StoreRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right font-medium">{value}</dd>
-    </div>
-  );
-}
