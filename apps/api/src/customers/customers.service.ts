@@ -34,8 +34,9 @@ export class CustomersService {
         (array_agg("customerName" ORDER BY "createdAt" DESC))[1] AS name,
         (array_agg("customerEmail" ORDER BY "createdAt" DESC) FILTER (WHERE "customerEmail" IS NOT NULL))[1] AS email,
         (array_agg("customerPhone" ORDER BY "createdAt" DESC) FILTER (WHERE "customerPhone" IS NOT NULL))[1] AS phone,
+        (array_agg("shippingAddress" ORDER BY "createdAt" DESC) FILTER (WHERE "shippingAddress" IS NOT NULL))[1] AS address,
         count(*)::int AS "ordersCount",
-        COALESCE(round(sum(total) FILTER (WHERE status <> 'CANCELLED'), 2), 0)::float8 AS "totalSpent",
+        COALESCE(round(sum(total) FILTER (WHERE "paymentStatus" = 'PAID'), 2), 0)::float8 AS "totalSpent",
         max("createdAt") AS "lastOrderAt"
       FROM "Sale"
       ${where}

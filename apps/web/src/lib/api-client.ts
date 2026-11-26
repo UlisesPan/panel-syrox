@@ -60,6 +60,8 @@ export async function apiFetch<T>(path: string, { method = "GET", body, params, 
     );
     // Sesión vencida: volvemos al login conservando a dónde quería ir el usuario.
     if (response.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/login")) {
+      // Se borra la cookie inválida; si no, el proxy vería "sesión" y devolvería al panel (loop).
+      await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
       const next = encodeURIComponent(window.location.pathname + window.location.search);
       // Recarga completa a propósito: descarta todo el estado/cache en memoria de la sesión vencida.
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination

@@ -4,7 +4,9 @@ import { useState, type ReactNode } from "react";
 import {
   BanIcon,
   CheckIcon,
+  CircleAlertIcon,
   CircleCheckIcon,
+  RotateCcwIcon,
   CreditCardIcon,
   HistoryIcon,
   MailIcon,
@@ -16,20 +18,19 @@ import {
   UserIcon,
   type LucideIcon,
 } from "lucide-react";
-import { PAYMENT_STATUSES, type PaymentStatus, type SaleDetail, type SaleStatus } from "@panel/shared";
+import { canTransitionSale, type SaleDetail, type SaleStatus } from "@panel/shared";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/crud/confirm-dialog";
-import { SaleStatusBadge } from "@/components/status-badge";
+import { PaymentStatusBadge, SaleStatusBadge } from "@/components/status-badge";
 import { useResourceDetail } from "@/hooks/use-resource";
 import { formatCurrency, formatDateTime } from "@/lib/format";
-import { paymentMethodLabels, paymentStatusMeta, saleStatusMeta } from "@/lib/labels";
+import { paymentMethodLabels, saleStatusMeta } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { salesResource, useUpdatePaymentStatus, useUpdateSaleStatus } from "./sales.resource";
 
@@ -189,9 +190,13 @@ function StatusProgress({ status }: { status: SaleStatus }) {
   );
 }
 
+/**
+ * El pago acompaña al estado de la venta (ver `paymentStatusAfter`). A mano solo se registra
+ * un pago fallido mientras la venta está pendiente.
+ */
 function PaymentPanel({ sale }: { sale: SaleDetail }) {
   const updatePayment = useUpdatePaymentStatus();
-  const meta = paymentStatusMeta[sale.paymentStatus];
+  const failed = sale.paymentStatus === "FAILED";
   return (
     <Panel icon={CreditCardIcon} title="Pago">
       <dl className="space-y-3">
@@ -202,24 +207,21 @@ function PaymentPanel({ sale }: { sale: SaleDetail }) {
         <div className="flex items-center justify-between gap-3">
           <dt className="text-muted-foreground">Estado</dt>
           <dd>
-            <Select
-              value={sale.paymentStatus}
-              disabled={updatePayment.isPending}
-              onValueChange={(value) => updatePayment.mutate({ id: sale.id, paymentStatus: value as PaymentStatus })}
-            >
-              <SelectTrigger size="sm" className="w-36" aria-label={`Estado del pago: ${meta.label}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAYMENT_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {paymentStatusMeta[status].label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PaymentStatusBadge status={sale.paymentStatus} />
           </dd>
         </div>
+        {sale.status === "PENDING" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn("-mx-2 h-auto px-2 py-1 text-xs", !failed && "text-destructive hover:text-destructive")}
+            disabled={updatePayment.isPending}
+            onClick={() => updatePayment.mutate({ id: sale.id, paymentStatus: failed ? "PENDING" : "FAILED" })}
+          >
+            {failed ? <RotateCcwIcon /> : <CircleAlertIcon />}
+            {failed ? "Volver a pendiente de pago" : "Registrar pago fallido"}
+          </Button>
+        )}
         <div className="flex items-center justify-between gap-3 border-t pt-3">
           <dt className="font-medium">Total</dt>
           <dd className="text-lg font-semibold tabular-nums">{formatCurrency(sale.total)}</dd>
@@ -288,6 +290,7 @@ function SaleActions({ sale }: { sale: SaleDetail }) {
       trackingNumber: status === "SHIPPED" ? tracking.trim() || null : null,
     });
   const NextIcon = next.icon;
+  const canCancel = canTransitionSale(sale.status, "CANCELLED");
 
   return (
     <div className="space-y-4 border-t bg-muted/30 px-5 py-4">
@@ -318,15 +321,19 @@ function SaleActions({ sale }: { sale: SaleDetail }) {
           </div>
         )}
       </div>
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button
-          variant="outline"
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-          disabled={updateStatus.isPending}
-          onClick={() => setConfirmCancel(true)}
-        >
-          <BanIcon /> Cancelar venta
-        </Button>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+        {canCancel ? (
+          <Button
+            variant="outline"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            disabled={updateStatus.isPending}
+            onClick={() => setConfirmCancel(true)}
+          >
+            <BanIcon /> Cancelar venta
+          </Button>
+        ) : (
+          <p className="text-xs text-muted-foreground sm:mr-auto">Una venta enviada ya no se puede cancelar.</p>
+        )}
         <Button disabled={updateStatus.isPending} onClick={() => change(next.status).catch(() => {})}>
           {updateStatus.isPending ? <Spinner /> : <NextIcon />}
           {next.label}
@@ -337,7 +344,11 @@ function SaleActions({ sale }: { sale: SaleDetail }) {
         open={confirmCancel}
         onOpenChange={setConfirmCancel}
         title={`¿Cancelar la venta #${sale.number}?`}
-        description="La venta quedará cancelada y no podrá volver a cambiar de estado."
+        description={
+          sale.paymentStatus === "PAID"
+            ? "La venta quedará cancelada y el pago se registrará como reembolsado. No se puede deshacer."
+            : "La venta quedará cancelada y no podrá volver a cambiar de estado."
+        }
         confirmLabel="Cancelar venta"
         destructive
         isPending={updateStatus.isPending}

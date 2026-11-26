@@ -13,6 +13,34 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const PAYMENT_STATUSES = ['PENDING', 'PAID', 'FAILED', 'REFUNDED'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
+/**
+ * Máquina de estados de la venta: solo se avanza un paso por vez y se cancela
+ * antes del envío. API y panel usan esta misma tabla.
+ */
+export const SALE_TRANSITIONS: Record<SaleStatus, readonly SaleStatus[]> = {
+  PENDING: ['PAID', 'CANCELLED'],
+  PAID: ['PREPARING', 'CANCELLED'],
+  PREPARING: ['SHIPPED', 'CANCELLED'],
+  SHIPPED: ['DELIVERED'],
+  DELIVERED: [],
+  CANCELLED: [],
+};
+
+export const canTransitionSale = (from: SaleStatus, to: SaleStatus) => SALE_TRANSITIONS[from].includes(to);
+
+/**
+ * El pago acompaña al estado de la venta: "Marcar como pagada" lo pasa a PAID y cancelar
+ * una venta cobrada lo pasa a REFUNDED. A mano solo se registra un pago fallido mientras la venta está pendiente.
+ */
+export const MANUAL_PAYMENT_STATUSES = ['PENDING', 'FAILED'] as const;
+export type ManualPaymentStatus = (typeof MANUAL_PAYMENT_STATUSES)[number];
+
+export function paymentStatusAfter(to: SaleStatus, current: PaymentStatus): PaymentStatus {
+  if (to === 'PAID') return 'PAID';
+  if (to === 'CANCELLED') return current === 'PAID' ? 'REFUNDED' : current;
+  return current;
+}
+
 const optionalText = (max: number) =>
   z
     .string()
@@ -34,7 +62,8 @@ export const saleInputSchema = z.object({
   customerPhone: optionalText(30),
   shippingAddress: optionalText(300),
   paymentMethod: z.enum(PAYMENT_METHODS).default('CASH'),
-  paymentStatus: z.enum(PAYMENT_STATUSES).default('PENDING'),
+  /** true = se registra ya cobrada (estado "Pagada"). */
+  paid: z.boolean().default(false),
   notes: optionalText(500),
   items: z
     .array(saleItemInputSchema)
@@ -50,12 +79,13 @@ export const saleStatusUpdateSchema = z.object({
 });
 
 export const salePaymentUpdateSchema = z.object({
-  paymentStatus: z.enum(PAYMENT_STATUSES),
+  paymentStatus: z.enum(MANUAL_PAYMENT_STATUSES),
 });
 
 /** Filtros adicionales del listado de ventas (se suman al listQuerySchema). */
 export const saleFiltersSchema = z.object({
   status: z.enum(SALE_STATUSES).optional(),
+  paymentStatus: z.enum(PAYMENT_STATUSES).optional(),
 });
 
 export type SaleInput = z.input<typeof saleInputSchema>;

@@ -83,7 +83,7 @@ export function CustomersView() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Clientes"
-        description="Se generan automáticamente a partir de las ventas registradas. El total excluye ventas canceladas."
+        description="Se generan automáticamente a partir de las ventas registradas. El total gastado suma solo ventas cobradas."
       />
       <Card>
         <CardContent className="flex flex-col gap-4">

@@ -5,11 +5,13 @@ import { cn } from "@/lib/utils";
 interface FormActionsProps {
   submitLabel: string;
   isPending?: boolean;
+  /** Deshabilita el envío (ej: formulario sin cambios). */
+  disabled?: boolean;
   onCancel?: () => void;
   className?: string;
 }
 
-export function FormActions({ submitLabel, isPending, onCancel, className }: FormActionsProps) {
+export function FormActions({ submitLabel, isPending, disabled, onCancel, className }: FormActionsProps) {
   return (
     <div className={cn("flex justify-end gap-2", className)}>
       {onCancel && (
@@ -17,7 +19,7 @@ export function FormActions({ submitLabel, isPending, onCancel, className }: For
           Cancelar
         </Button>
       )}
-      <Button type="submit" disabled={isPending}>
+      <Button type="submit" disabled={isPending || disabled}>
         {isPending && <Spinner />}
         {submitLabel}
       </Button>

@@ -7,8 +7,10 @@ export interface Customer {
   name: string;
   email: string | null;
   phone: string | null;
+  /** Última dirección de envío usada. */
+  address: string | null;
   ordersCount: number;
-  /** Suma de las ventas no canceladas. */
+  /** Suma de las ventas cobradas (pago "Pagado"). */
   totalSpent: number;
   lastOrderAt: string;
 }

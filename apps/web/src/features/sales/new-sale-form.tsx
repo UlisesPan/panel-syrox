@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlusIcon, Trash2Icon } from "lucide-react";
-import { saleInputSchema, type SaleProductOption } from "@panel/shared";
+import { saleInputSchema, type Customer, type SaleProductOption } from "@panel/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { FieldError, FieldGroup } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -18,7 +19,8 @@ import { PageHeader } from "@/components/crud/page-header";
 import { useResourceMutations } from "@/hooks/use-resource";
 import { formatCurrency } from "@/lib/format";
 import { handleFormError } from "@/lib/form-errors";
-import { paymentMethodLabels, paymentStatusMeta, toOptions } from "@/lib/labels";
+import { paymentMethodLabels, toOptions } from "@/lib/labels";
+import { CustomerPicker } from "./customer-picker";
 import { ProductPicker } from "./product-picker";
 import { salesResource } from "./sales.resource";
 
@@ -42,11 +44,19 @@ export function NewSaleForm() {
       customerPhone: null,
       shippingAddress: null,
       paymentMethod: "CASH",
-      paymentStatus: "PENDING",
+      paid: false,
       notes: null,
       items: [emptyItem],
     },
   });
+
+  const fillCustomer = (customer: Customer) => {
+    const opts = { shouldDirty: true, shouldValidate: true };
+    form.setValue("customerName", customer.name, opts);
+    form.setValue("customerEmail", customer.email, opts);
+    form.setValue("customerPhone", customer.phone, opts);
+    form.setValue("shippingAddress", customer.address, opts);
+  };
   const items = useFieldArray({ control: form.control, name: "items" });
   const watchedItems = useWatch({ control: form.control, name: "items" });
 
@@ -198,6 +208,7 @@ export function NewSaleForm() {
           </CardHeader>
           <CardContent>
             <FieldGroup>
+              <CustomerPicker onSelect={fillCustomer} />
               <TextField control={form.control} name="customerName" label="Nombre del cliente" required />
               <FormField
                 control={form.control}
@@ -239,21 +250,30 @@ export function NewSaleForm() {
                 placeholder="Calle, número, colonia, ciudad, CP"
                 rows={2}
               />
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                <SelectField
-                  control={form.control}
-                  name="paymentMethod"
-                  label="Medio de pago"
-                  options={toOptions(paymentMethodLabels)}
-                />
-                <SelectField
-                  control={form.control}
-                  name="paymentStatus"
-                  label="Estado del pago"
-                  options={toOptions(paymentStatusMeta)}
-                />
-              </div>
-              <p className="-mt-2 text-xs text-muted-foreground">Solo informativo: no se procesan pagos.</p>
+              <SelectField
+                control={form.control}
+                name="paymentMethod"
+                label="Medio de pago"
+                options={toOptions(paymentMethodLabels)}
+                description="Solo informativo: no se procesan pagos."
+              />
+              <Controller
+                control={form.control}
+                name="paid"
+                render={({ field }) => (
+                  <Field orientation="horizontal">
+                    <Checkbox
+                      id="sale-paid"
+                      checked={field.value}
+                      onCheckedChange={(checked) => field.onChange(checked === true)}
+                    />
+                    <FieldContent>
+                      <FieldLabel htmlFor="sale-paid">Ya está pagada</FieldLabel>
+                      <FieldDescription>La venta se registra directamente como “Pagada”.</FieldDescription>
+                    </FieldContent>
+                  </Field>
+                )}
+              />
               <TextareaField control={form.control} name="notes" label="Notas" rows={2} />
             </FieldGroup>
           </CardContent>

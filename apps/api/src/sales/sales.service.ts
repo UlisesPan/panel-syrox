@@ -1,5 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
+  canTransitionSale,
+  paymentStatusAfter,
   saleFiltersSchema,
   saleInputSchema,
   saleStatusUpdateSchema,
@@ -24,6 +26,15 @@ type SaleListQuery = ListQuery & z.output<typeof saleFiltersSchema>;
 
 /** Estados finales: una venta entregada o cancelada ya no cambia. */
 const FINAL_STATUSES: SaleStatus[] = ['DELIVERED', 'CANCELLED'];
+
+const STATUS_LABELS: Record<SaleStatus, string> = {
+  PENDING: 'Pendiente',
+  PAID: 'Pagada',
+  PREPARING: 'En preparación',
+  SHIPPED: 'Enviada',
+  DELIVERED: 'Entregada',
+  CANCELLED: 'Cancelada',
+};
 
 const listInclude = { _count: { select: { items: true } } } satisfies Prisma.SaleInclude;
 const detailInclude = {
@@ -87,6 +98,7 @@ export class SalesService {
     const saleNumber = search && /^\d+$/.test(search) ? Number(search) : undefined;
     const where: Prisma.SaleWhereInput = {
       status: query.status,
+      paymentStatus: query.paymentStatus,
       ...(search && {
         OR: [
           { customerName: { contains: search, mode: 'insensitive' } },
@@ -170,12 +182,19 @@ export class SalesService {
           customerPhone: dto.customerPhone,
           shippingAddress: dto.shippingAddress,
           paymentMethod: dto.paymentMethod,
-          paymentStatus: dto.paymentStatus,
+          status: dto.paid ? 'PAID' : 'PENDING',
+          paymentStatus: dto.paid ? 'PAID' : 'PENDING',
           notes: dto.notes,
           total,
           createdById: user.id,
           items: { create: items },
-          statusHistory: { create: { status: 'PENDING', changedById: user.id } },
+          statusHistory: {
+            create: {
+              status: dto.paid ? 'PAID' : 'PENDING',
+              note: dto.paid ? 'Registrada como pagada' : null,
+              changedById: user.id,
+            },
+          },
         },
         include: detailInclude,
       });
@@ -183,32 +202,46 @@ export class SalesService {
     return toDetailDto(sale);
   }
 
+  /**
+   * Avanza la venta según `SALE_TRANSITIONS` (un paso por vez; cancelar solo antes del envío).
+   * El pago se actualiza solo: "Pagada" lo cobra y cancelar una venta cobrada la reembolsa.
+   * El `where` incluye el estado leído para que dos cambios simultáneos no se pisen.
+   */
   async updateStatus(id: string, dto: SaleStatusDto, user: SessionUser): Promise<SaleDetail> {
     const sale = await this.prisma.sale.findUnique({ where: { id }, select: { status: true, paymentStatus: true } });
     if (!sale) throw new NotFoundException('La venta no existe.');
     if (FINAL_STATUSES.includes(sale.status)) {
       throw new BadRequestException('La venta ya está finalizada y no puede cambiar de estado.');
     }
-    if (dto.status === sale.status) {
-      throw new BadRequestException('La venta ya está en ese estado.');
+    if (!canTransitionSale(sale.status, dto.status)) {
+      throw new BadRequestException(
+        dto.status === 'CANCELLED'
+          ? 'Una venta enviada ya no se puede cancelar.'
+          : `No se puede pasar de "${STATUS_LABELS[sale.status]}" a "${STATUS_LABELS[dto.status]}".`,
+      );
     }
-    const updated = await this.prisma.sale.update({
-      where: { id },
-      data: {
-        status: dto.status,
-        // Marcar la venta como pagada actualiza el pago si todavía figuraba pendiente.
-        ...(dto.status === 'PAID' && sale.paymentStatus === 'PENDING' && { paymentStatus: 'PAID' as const }),
-        ...(dto.trackingNumber && { trackingNumber: dto.trackingNumber }),
-        statusHistory: { create: { status: dto.status, note: dto.note, changedById: user.id } },
-      },
-      include: detailInclude,
+    const paymentStatus = paymentStatusAfter(dto.status, sale.paymentStatus);
+    const autoNote = paymentStatus === 'REFUNDED' && sale.paymentStatus === 'PAID' ? 'Pago reembolsado' : null;
+    const note = [dto.note, autoNote].filter(Boolean).join(' · ') || null;
+
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.sale.updateMany({
+        where: { id, status: sale.status },
+        data: { status: dto.status, paymentStatus, ...(dto.trackingNumber && { trackingNumber: dto.trackingNumber }) },
+      });
+      if (count === 0) throw new ConflictException('La venta cambió mientras la editabas. Recargá e intentá de nuevo.');
+      await tx.saleStatusChange.create({ data: { saleId: id, status: dto.status, note, changedById: user.id } });
     });
-    return toDetailDto(updated);
+    return this.findOne(id);
   }
 
+  /** Solo mientras la venta está pendiente se puede registrar un pago fallido (o volverlo a pendiente). */
   async updatePaymentStatus(id: string, paymentStatus: PaymentStatus): Promise<SaleDetail> {
-    const sale = await this.prisma.sale.findUnique({ where: { id }, select: { id: true } });
+    const sale = await this.prisma.sale.findUnique({ where: { id }, select: { status: true } });
     if (!sale) throw new NotFoundException('La venta no existe.');
+    if (sale.status !== 'PENDING') {
+      throw new BadRequestException('El pago solo se puede modificar mientras la venta está pendiente.');
+    }
     const updated = await this.prisma.sale.update({ where: { id }, data: { paymentStatus }, include: detailInclude });
     return toDetailDto(updated);
   }

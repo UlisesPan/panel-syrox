@@ -3,17 +3,23 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import type { SessionUser } from '@panel/shared';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { IS_PUBLIC_KEY, SESSION_COOKIE, type JwtPayload } from './auth.constants.js';
+
+export type AuthenticatedRequest = Request & { user?: SessionUser; session?: JwtPayload };
 
 /**
  * Guard global: toda ruta requiere sesión salvo las marcadas con @Public().
  * Acepta el JWT desde la cookie httpOnly (panel web) o el header Bearer (Swagger / clientes externos).
+ * El usuario se lee de la base en cada request: si fue eliminado o cambió su contraseña
+ * (tokenVersion distinto), el token deja de valer aunque no haya expirado.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly reflector: Reflector,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -23,17 +29,24 @@ export class JwtAuthGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
-    const request = context.switchToHttp().getRequest<Request & { user?: SessionUser }>();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.extractToken(request);
     if (!token) throw new UnauthorizedException('Sesión no iniciada.');
 
-    try {
-      const payload = await this.jwt.verifyAsync<JwtPayload>(token);
-      request.user = { id: payload.sub, email: payload.email, name: payload.name };
-      return true;
-    } catch {
+    const payload = await this.jwt.verifyAsync<JwtPayload>(token).catch(() => null);
+    const user = payload
+      ? await this.prisma.user.findUnique({
+          where: { id: payload.sub },
+          select: { id: true, email: true, name: true, tokenVersion: true },
+        })
+      : null;
+    if (!payload || !user || user.tokenVersion !== (payload.ver ?? 0)) {
       throw new UnauthorizedException('La sesión expiró o es inválida.');
     }
+
+    request.user = { id: user.id, email: user.email, name: user.name };
+    request.session = payload;
+    return true;
   }
 
   private extractToken(request: Request): string | undefined {

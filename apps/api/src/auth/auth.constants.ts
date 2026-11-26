@@ -8,6 +8,8 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
 export interface JwtPayload {
   sub: string;
-  email: string;
-  name: string;
+  /** Debe coincidir con User.tokenVersion (ausente en tokens viejos = 0). */
+  ver?: number;
+  /** "Mantener sesión iniciada": se respeta al re-emitir la cookie. */
+  rem?: boolean;
 }

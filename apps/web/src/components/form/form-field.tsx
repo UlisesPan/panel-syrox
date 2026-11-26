@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import {
   Controller,
   type Control,
@@ -12,6 +12,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PasswordInput } from "./password-input";
 
 interface BaseFieldProps<T extends FieldValues, N extends FieldPath<T>> {
   control: Control<T>;
@@ -40,7 +41,8 @@ export function FormField<T extends FieldValues, N extends FieldPath<T>>({
   className,
   render,
 }: FormFieldProps<T, N>) {
-  const id = `field-${String(name).replace(/\./g, "-")}`;
+  // useId: dos formularios en la misma página pueden tener campos con el mismo nombre.
+  const id = `field-${String(name).replace(/\./g, "-")}-${useId().replace(/:/g, "")}`;
   return (
     <Controller
       control={control}
@@ -77,18 +79,18 @@ export function TextField<T extends FieldValues, N extends FieldPath<T>>({
   return (
     <FormField
       {...props}
-      render={(field, { id, invalid }) => (
-        <Input
-          {...field}
-          value={field.value ?? ""}
-          id={id}
-          type={type}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-          autoFocus={autoFocus}
-          aria-invalid={invalid}
-        />
-      )}
+      render={(field, { id, invalid }) => {
+        const inputProps = {
+          ...field,
+          value: field.value ?? "",
+          id,
+          placeholder,
+          autoComplete,
+          autoFocus,
+          "aria-invalid": invalid,
+        };
+        return type === "password" ? <PasswordInput {...inputProps} /> : <Input {...inputProps} type={type} />;
+      }}
     />
   );
 }

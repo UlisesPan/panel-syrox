@@ -2,6 +2,7 @@ import {
   HomeIcon,
   PackageIcon,
   SettingsIcon,
+  ShieldUserIcon,
   ShoppingCartIcon,
   TagIcon,
   UsersIcon,
@@ -26,6 +27,7 @@ export const navigation: NavItem[] = [
   { title: "Marcas", href: "/marcas", icon: TagIcon },
   { title: "Productos", href: "/productos", icon: PackageIcon },
   { title: "Clientes", href: "/clientes", icon: UsersIcon },
+  { title: "Usuarios", href: "/usuarios", icon: ShieldUserIcon },
   { title: "Configuración", href: "/configuracion", icon: SettingsIcon },
 ];
 

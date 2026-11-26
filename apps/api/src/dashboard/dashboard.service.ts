@@ -10,19 +10,20 @@ export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async summary(): Promise<DashboardSummary> {
-    // Las ventas canceladas no suman a los ingresos.
-    const validSales = { status: { not: 'CANCELLED' as const } };
+    // Ingresos = ventas cobradas. Lo pendiente de cobro se informa aparte.
+    const paidSales = { paymentStatus: 'PAID' as const };
     const since = new Date();
     since.setUTCHours(0, 0, 0, 0);
     since.setUTCDate(since.getUTCDate() - (DAYS - 1));
 
-    const [productsTotal, productsActive, categories, brands, salesAgg, recentSales, byDay, topProducts] =
+    const [productsTotal, productsActive, categories, brands, salesAgg, pendingAgg, recentSales, byDay, topProducts] =
       await Promise.all([
         this.prisma.product.count(),
         this.prisma.product.count({ where: { status: 'ACTIVE' } }),
         this.prisma.category.count(),
         this.prisma.brand.count(),
-        this.prisma.sale.aggregate({ where: validSales, _count: true, _sum: { total: true } }),
+        this.prisma.sale.aggregate({ where: paidSales, _count: true, _sum: { total: true } }),
+        this.prisma.sale.aggregate({ where: { status: 'PENDING' }, _count: true, _sum: { total: true } }),
         this.prisma.sale.findMany({
           orderBy: { createdAt: 'desc' },
           take: 5,
@@ -31,7 +32,7 @@ export class DashboardService {
         this.prisma.$queryRaw<Array<{ day: Date; revenue: string; count: bigint }>>`
           SELECT date_trunc('day', "createdAt") AS day, SUM(total)::text AS revenue, COUNT(*) AS count
           FROM "Sale"
-          WHERE status <> 'CANCELLED' AND "createdAt" >= ${since}
+          WHERE "paymentStatus" = 'PAID' AND "createdAt" >= ${since}
           GROUP BY 1
           ORDER BY 1`,
         this.prisma.$queryRaw<Array<{ productId: string | null; name: string; quantity: bigint; revenue: string }>>`
@@ -66,6 +67,7 @@ export class DashboardService {
         revenue,
         averageTicket: count ? Math.round((revenue / count) * 100) / 100 : 0,
       },
+      pending: { count: pendingAgg._count, amount: Number(pendingAgg._sum.total ?? 0) },
       revenueByDay,
       recentSales: recentSales.map(toSaleDto),
       topProducts: topProducts.map((p) => ({

@@ -77,6 +77,8 @@ nombre, logo, color de marca, moneda y locale. El resto del panel es 100% genér
 - **Ventas con snapshot:** cada ítem guarda nombre, variante y precio al momento de la venta. Si después cambia el precio o se elimina el producto, el histórico no se altera.
 - **Los precios de una venta se calculan siempre en el servidor**, dentro de una transacción. El total del front es solo una previsualización.
 - **Las ventas no se eliminan:** se cancelan. Entregadas y canceladas son estados finales. Cada cambio de estado queda en un historial (fecha, usuario y nota opcional).
+- **Máquina de estados compartida:** la venta avanza un paso por vez (Pendiente → Pagada → En preparación → Enviada → Entregada) y solo se cancela antes del envío. El pago acompaña al estado: no se puede entregar una venta con el pago fallido, y cancelar una venta cobrada la marca como reembolsada. La misma tabla de transiciones la usan la API (que la hace cumplir) y el panel (que solo muestra las acciones válidas).
+- **Ingresos = ventas cobradas:** el dashboard y el "total gastado" de clientes cuentan solo pagos confirmados; lo pendiente de cobro se muestra aparte.
 - **Marca obligatoria:** todo producto pertenece a una marca; al eliminar una marca se eliminan sus productos (las ventas conservan su snapshot).
 - **Clientes sin tabla propia:** se derivan de las ventas agrupando por email (o nombre), así no hay datos duplicados que mantener sincronizados.
 - **Orden por lista blanca:** cada recurso declara por qué columnas se puede ordenar (`resolveOrderBy`).
@@ -87,7 +89,9 @@ nombre, logo, color de marca, moneda y locale. El resto del panel es 100% genér
 
 ### Seguridad
 
-Contraseñas con bcrypt · comparación en tiempo constante aunque el usuario no exista · rate limit global y más estricto en el login · `helmet` · validación de variables de entorno al arrancar · protección contra open redirect en `?next=`.
+Contraseñas con bcrypt · comparación en tiempo constante aunque el usuario no exista · rate limit global y más estricto en login, cambio y recuperación de contraseña · `helmet` · validación de variables de entorno al arrancar · protección contra open redirect en `?next=`.
+
+Sesiones revocables: el guard lee el usuario en cada request y compara la versión del token; cambiar o restablecer la contraseña cierra las demás sesiones y eliminar un usuario le quita el acceso al instante. Recuperación de contraseña con token de un solo uso (se guarda solo su hash, vence en 30 min) y respuesta idéntica exista o no el email.
 
 ---
 
@@ -99,7 +103,10 @@ Contraseñas con bcrypt · comparación en tiempo constante aunque el usuario no
 - Filtros y búsqueda con debounce, todo reflejado en la URL
 - "Gestionar venta": progreso del pedido, datos de cliente/pago/envío, tracking, historial y acciones según el estado
 - Clientes: pedidos, total gastado y última compra, con acceso directo a sus ventas
-- Configuración: datos de la cuenta y cambio de contraseña
+- "Generar venta" con selector de clientes anteriores (autocompleta email, teléfono y dirección)
+- Usuarios: alta, edición y baja de administradores
+- Configuración: editar perfil (cambiar el email pide la contraseña) y cambio de contraseña
+- Recuperación de contraseña por mail (Brevo) y botón para mostrar/ocultar contraseñas
 - Responsive, skeletons de carga, estados vacíos y toasts
 - Swagger generado a partir de los schemas Zod
 - Seed determinístico con datos realistas

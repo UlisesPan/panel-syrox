@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PlusIcon, ReceiptIcon } from "lucide-react";
-import { SALE_STATUSES, type Sale } from "@panel/shared";
+import { PAYMENT_STATUSES, SALE_STATUSES, type Sale } from "@panel/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -15,7 +15,7 @@ import { PaymentStatusBadge, SaleStatusBadge } from "@/components/status-badge";
 import { useListParams } from "@/hooks/use-list-params";
 import { useResourceList } from "@/hooks/use-resource";
 import { formatCurrency, formatDateTime } from "@/lib/format";
-import { paymentMethodLabels, saleStatusMeta } from "@/lib/labels";
+import { paymentMethodLabels, paymentStatusMeta, saleStatusMeta } from "@/lib/labels";
 import { salesResource } from "./sales.resource";
 import { SaleDetailDialog } from "./sale-detail-dialog";
 
@@ -76,7 +76,7 @@ const columns: DataTableColumn<Sale>[] = [
 
 export function SalesView() {
   const { state, queryParams, setParams, toggleSort } = useListParams({
-    filterKeys: ["status", "sale"] as const,
+    filterKeys: ["status", "paymentStatus", "sale"] as const,
   });
   // `sale` es estado de UI (detalle abierto), no un filtro de la API.
   const { sale: openSaleId, ...apiParams } = queryParams as typeof queryParams & { sale?: string };
@@ -121,6 +121,22 @@ export function SalesView() {
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={state.filters.paymentStatus ?? ALL}
+              onValueChange={(paymentStatus) => setParams({ paymentStatus: paymentStatus === ALL ? null : paymentStatus })}
+            >
+              <SelectTrigger className="sm:w-44" aria-label="Filtrar por pago">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos los pagos</SelectItem>
+                {PAYMENT_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {paymentStatusMeta[status].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <DataTable
@@ -146,7 +162,7 @@ export function SalesView() {
                   </EmptyMedia>
                   <EmptyTitle>No hay ventas</EmptyTitle>
                   <EmptyDescription>
-                    {state.search || state.filters.status
+                    {state.search || state.filters.status || state.filters.paymentStatus
                       ? "Ninguna venta coincide con los filtros."
                       : "Registrá la primera venta para verla acá."}
                   </EmptyDescription>

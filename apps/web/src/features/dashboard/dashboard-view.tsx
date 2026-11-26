@@ -66,10 +66,15 @@ export function DashboardView() {
               title="Ingresos"
               icon={DollarSignIcon}
               value={data && formatCurrency(data.sales.revenue)}
-              hint="Ventas no canceladas"
+              hint={
+                data &&
+                (data.pending.count > 0
+                  ? `${formatCurrency(data.pending.amount)} por cobrar (${data.pending.count} ${data.pending.count === 1 ? "venta" : "ventas"})`
+                  : "Todo cobrado")
+              }
             />
             <StatCard
-              title="Ventas"
+              title="Ventas cobradas"
               icon={ReceiptIcon}
               value={data && formatNumber(data.sales.count)}
               hint={data && `Ticket promedio ${formatCurrency(data.sales.averageTicket)}`}
@@ -136,7 +141,7 @@ function RevenueChart({ data, isPending }: { data?: DashboardSummary; isPending:
     <Card className="lg:col-span-2">
       <CardHeader>
         <CardTitle>Ingresos de los últimos 30 días</CardTitle>
-        <CardDescription>Excluye ventas canceladas</CardDescription>
+        <CardDescription>Solo ventas cobradas</CardDescription>
       </CardHeader>
       <CardContent>
         {isPending || !data ? (

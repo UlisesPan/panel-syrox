@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOutIcon } from "lucide-react";
+import Link from "next/link";
+import { LogOutIcon, SettingsIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +38,13 @@ export function UserMenu() {
           <span className="truncate">{user.name}</span>
           <span className="truncate text-xs font-normal text-muted-foreground">{user.email}</span>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/configuracion">
+            <SettingsIcon />
+            Configuración
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={() => logout.mutate()} disabled={logout.isPending}>
           <LogOutIcon />

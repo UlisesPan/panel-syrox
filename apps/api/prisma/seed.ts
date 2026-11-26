@@ -176,7 +176,22 @@ async function main() {
     const customerName = pick(CUSTOMERS);
     const status = pick(STATUS_WEIGHTS);
     const shipped = status === 'SHIPPED' || status === 'DELIVERED';
-    const later = (hours: number) => new Date(createdAt.getTime() + hours * 3_600_000);
+    // Recorre la máquina de estados real: cada paso intermedio queda en el historial.
+    const flow: SaleStatus[] = ['PENDING', 'PAID', 'PREPARING', 'SHIPPED', 'DELIVERED'];
+    const cancelledAfterPaying = status === 'CANCELLED' && random() < 0.5;
+    const steps: SaleStatus[] =
+      status === 'CANCELLED'
+        ? [...(cancelledAfterPaying ? flow.slice(0, 2) : flow.slice(0, 1)), 'CANCELLED']
+        : flow.slice(0, flow.indexOf(status) + 1);
+    const paymentStatus =
+      status === 'CANCELLED'
+        ? cancelledAfterPaying
+          ? 'REFUNDED'
+          : 'FAILED'
+        : status === 'PENDING'
+          ? 'PENDING'
+          : 'PAID';
+    let elapsedHours = 0;
     await prisma.sale.create({
       data: {
         customerName,
@@ -186,16 +201,21 @@ async function main() {
         trackingNumber: shipped ? String(between(1_000_000_000, 9_999_999_999)) : null,
         status,
         paymentMethod: pick(PAYMENT_METHODS),
-        paymentStatus: status === 'PENDING' ? 'PENDING' : status === 'CANCELLED' ? 'REFUNDED' : 'PAID',
+        paymentStatus,
         total: items.reduce((sum, item) => sum.add(item.subtotal), new Prisma.Decimal(0)),
         createdById: admin.id,
         createdAt,
         items: { create: items },
         statusHistory: {
-          create: [
-            { status: 'PENDING', changedById: admin.id, createdAt },
-            ...(status === 'PENDING' ? [] : [{ status, changedById: admin.id, createdAt: later(between(2, 48)) }]),
-          ],
+          create: steps.map((step, index) => {
+            if (index > 0) elapsedHours += between(2, 30);
+            return {
+              status: step,
+              changedById: admin.id,
+              note: step === 'CANCELLED' && cancelledAfterPaying ? 'Pago reembolsado' : null,
+              createdAt: new Date(createdAt.getTime() + elapsedHours * 3_600_000),
+            };
+          }),
         },
       },
     });

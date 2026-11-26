@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircleIcon } from "lucide-react";
+import { AlertCircleIcon, CircleCheckIcon } from "lucide-react";
 import { loginSchema } from "@panel/shared";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,6 +42,15 @@ export function LoginForm() {
   return (
     <form onSubmit={submit} noValidate>
       <FieldGroup>
+        {searchParams.has("reset") && !login.isError && (
+          <div
+            role="status"
+            className="flex items-center gap-2 rounded-lg border border-emerald-600/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400"
+          >
+            <CircleCheckIcon className="size-4 shrink-0" />
+            Contraseña actualizada. Ingresá con la nueva.
+          </div>
+        )}
         {login.isError && (
           <div
             role="alert"
@@ -86,6 +96,12 @@ export function LoginForm() {
           {login.isPending && <Spinner />}
           Ingresar
         </Button>
+        <Link
+          href="/recuperar-contrasena"
+          className="mx-auto text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          ¿Olvidaste tu contraseña?
+        </Link>
       </FieldGroup>
     </form>
   );

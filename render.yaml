@@ -25,6 +25,14 @@ services:
         value: "8h"
       - key: JWT_REMEMBER_EXPIRES_IN
         value: "30d"
+      - key: APP_URL
+        value: https://panel-syrox.vercel.app
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM_EMAIL
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Tennis Star
       - key: SEED_ADMIN_EMAIL
         sync: false
       - key: SEED_ADMIN_PASSWORD

@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "panel_session";
-const PUBLIC_PATHS = ["/login"];
+/** Accesibles sin sesión. */
+const PUBLIC_PATHS = ["/login", "/recuperar-contrasena", "/restablecer-contrasena"];
+/** Si ya hay sesión no tiene sentido mostrarlas: se redirige al inicio. */
+const GUEST_ONLY_PATHS = ["/login"];
+
+const matches = (paths: string[], pathname: string) => paths.some((path) => pathname.startsWith(path));
 
 /**
  * Chequeo optimista de sesión: si no hay cookie, redirige al login antes de renderizar.
@@ -11,15 +16,14 @@ const PUBLIC_PATHS = ["/login"];
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const hasSession = request.cookies.has(SESSION_COOKIE);
-  const isPublic = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
 
-  if (!hasSession && !isPublic) {
+  if (!hasSession && !matches(PUBLIC_PATHS, pathname)) {
     const url = new URL("/login", request.url);
     if (pathname !== "/") url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
   }
 
-  if (hasSession && isPublic) {
+  if (hasSession && matches(GUEST_ONLY_PATHS, pathname)) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 

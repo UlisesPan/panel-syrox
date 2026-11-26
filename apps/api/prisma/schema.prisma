@@ -18,11 +18,28 @@ model User {
   email        String   @unique
   name         String
   passwordHash String
+  /// Se incrementa al cambiar/restablecer la contraseña: invalida los JWT emitidos antes.
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  sales         Sale[]
-  statusChanges SaleStatusChange[]
+  sales          Sale[]
+  statusChanges  SaleStatusChange[]
+  passwordResets PasswordResetToken[]
+}
+
+/// Solo se guarda el hash SHA-256 del token: el valor real viaja únicamente en el mail.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Category {

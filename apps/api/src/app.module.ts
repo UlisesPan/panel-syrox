@@ -10,6 +10,8 @@ import { BrandsModule } from './brands/brands.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { SalesModule } from './sales/sales.module.js';
 import { CustomersModule } from './customers/customers.module.js';
+import { UsersModule } from './users/users.module.js';
+import { MailModule } from './mail/mail.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { HealthController } from './health/health.controller.js';
 
@@ -22,7 +24,9 @@ import { HealthController } from './health/health.controller.js';
       errorMessage: 'Demasiados intentos. Esperá un minuto y volvé a probar.',
     }),
     PrismaModule,
+    MailModule,
     AuthModule,
+    UsersModule,
     CategoriesModule,
     BrandsModule,
     ProductsModule,

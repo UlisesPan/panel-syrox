@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import type { LoginInput, SessionUser } from "@panel/shared";
+import type { LoginInput, ProfileUpdateInput, SessionUser } from "@panel/shared";
 import { apiFetch } from "@/lib/api-client";
 
 const sessionKey = ["auth", "me"] as const;
@@ -21,6 +21,19 @@ export function useLogin() {
     mutationFn: (input: LoginInput) =>
       apiFetch<{ user: SessionUser }>("/auth/login", { method: "POST", body: input }),
     onSuccess: ({ user }) => queryClient.setQueryData(sessionKey, user),
+  });
+}
+
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ProfileUpdateInput) =>
+      apiFetch<{ user: SessionUser }>("/auth/profile", { method: "PATCH", body: input }),
+    onSuccess: ({ user }) => {
+      queryClient.setQueryData(sessionKey, user);
+      // El nombre del usuario aparece en ventas e historial.
+      void queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
   });
 }
 

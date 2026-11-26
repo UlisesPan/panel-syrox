@@ -33,6 +33,8 @@ interface CrudPageProps<TItem extends { id: string }, TInput, TDetail> {
   /** Formulario del recurso. CrudPage se encarga de abrirlo, guardar y cerrar. */
   renderForm: (props: ResourceFormProps<TItem, TInput>) => ReactNode;
   deleteDescription?: (item: TItem) => ReactNode;
+  /** Oculta la acción de eliminar en las filas que devuelvan false. */
+  canDelete?: (item: TItem) => boolean;
   viewHref?: (item: TItem) => string;
   viewTooltip?: string;
 }
@@ -53,6 +55,7 @@ export function CrudPage<TItem extends { id: string }, TInput, TDetail>({
   getItemLabel,
   renderForm,
   deleteDescription,
+  canDelete,
   viewHref,
   viewTooltip,
 }: CrudPageProps<TItem, TInput, TDetail>) {
@@ -110,7 +113,7 @@ export function CrudPage<TItem extends { id: string }, TInput, TDetail>({
                 viewHref={viewHref?.(item)}
                 viewTooltip={viewTooltip}
                 onEdit={() => setDialog({ mode: "edit", item })}
-                onDelete={() => setToDelete(item)}
+                onDelete={canDelete && !canDelete(item) ? undefined : () => setToDelete(item)}
               />
             )}
             emptyState={
