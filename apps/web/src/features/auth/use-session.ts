@@ -10,7 +10,10 @@ const sessionKey = ["auth", "me"] as const;
 export function useSessionUser() {
   return useQuery({
     queryKey: sessionKey,
-    queryFn: () => apiFetch<{ user: SessionUser }>("/auth/me").then((r) => r.user),
+    // Una API anterior a los roles no manda `role`: todos sus usuarios eran administradores.
+    // Así el panel sigue funcionando si la web se despliega antes que la API.
+    queryFn: () =>
+      apiFetch<{ user: SessionUser }>("/auth/me").then((r) => ({ ...r.user, role: r.user.role ?? "ADMIN" })),
     staleTime: Infinity,
   });
 }
@@ -20,7 +23,7 @@ export function useLogin() {
   return useMutation({
     mutationFn: (input: LoginInput) =>
       apiFetch<{ user: SessionUser }>("/auth/login", { method: "POST", body: input }),
-    onSuccess: ({ user }) => queryClient.setQueryData(sessionKey, user),
+    onSuccess: ({ user }) => queryClient.setQueryData(sessionKey, { ...user, role: user.role ?? "ADMIN" }),
   });
 }
 
@@ -30,7 +33,7 @@ export function useUpdateProfile() {
     mutationFn: (input: ProfileUpdateInput) =>
       apiFetch<{ user: SessionUser }>("/auth/profile", { method: "PATCH", body: input }),
     onSuccess: ({ user }) => {
-      queryClient.setQueryData(sessionKey, user);
+      queryClient.setQueryData(sessionKey, { ...user, role: user.role ?? "ADMIN" });
       // El nombre del usuario aparece en ventas e historial.
       void queryClient.invalidateQueries({ queryKey: ["users"] });
     },
