@@ -24,6 +24,7 @@ pnpm dev                                       # API :4000 · Web :3000
 |---|---|
 | Panel | http://localhost:3000 |
 | Usuario demo | `admin@panel.com` / `Admin123!` |
+| Viajante demo | `viajante@panel.com` / `Viajante123` |
 | Swagger | http://localhost:4000/api/docs |
 | Healthcheck | http://localhost:4000/api/health |
 
@@ -33,7 +34,7 @@ pnpm dev                                       # API :4000 · Web :3000
 
 ```
 apps/
-  api/        NestJS: un módulo por dominio (auth, categories, brands, products, sales, customers, dashboard)
+  api/        NestJS: un módulo por dominio (auth, users, categories, brands, products, sales, deliveries, customers, dashboard, mail, uploads)
   web/        Next.js App Router
 packages/
   shared/     Schemas Zod + tipos + utilidades compartidas por api y web
@@ -78,6 +79,9 @@ nombre, logo, color de marca, moneda y locale. El resto del panel es 100% genér
 - **Los precios de una venta se calculan siempre en el servidor**, dentro de una transacción. El total del front es solo una previsualización.
 - **Las ventas no se eliminan:** se cancelan. Entregadas y canceladas son estados finales. Cada cambio de estado queda en un historial (fecha, usuario y nota opcional).
 - **Máquina de estados compartida:** la venta avanza un paso por vez (Pendiente → Pagada → En preparación → Enviada → Entregada) y solo se cancela antes del envío. El pago acompaña al estado: no se puede entregar una venta con el pago fallido, y cancelar una venta cobrada la marca como reembolsada. La misma tabla de transiciones la usan la API (que la hace cumplir) y el panel (que solo muestra las acciones válidas).
+- **Roles con acceso denegado por defecto:** administrador y viajante. Toda ruta de la API es solo para ADMIN salvo que declare otro rol con `@Roles`; el viajante solo ve "Mis entregas" y su perfil.
+- **Entrega con código (como Mercado Libre):** al despachar con viajante, el cliente recibe por mail un código de 4 dígitos que le da al viajante al recibir el pedido. Se guarda solo su hash, hay 5 intentos y administración puede reenviarlo o confirmar a mano.
+- **Imágenes en Cloudinary con subida firmada:** la API firma y el navegador sube directo a Cloudinary (el archivo no pasa por el servidor y el secreto nunca llega al front). Las miniaturas se piden recortadas y en WebP/AVIF.
 - **Ingresos = ventas cobradas:** el dashboard y el "total gastado" de clientes cuentan solo pagos confirmados; lo pendiente de cobro se muestra aparte.
 - **Marca obligatoria:** todo producto pertenece a una marca; al eliminar una marca se eliminan sus productos (las ventas conservan su snapshot).
 - **Clientes sin tabla propia:** se derivan de las ventas agrupando por email (o nombre), así no hay datos duplicados que mantener sincronizados.
@@ -104,7 +108,10 @@ Sesiones revocables: el guard lee el usuario en cada request y compara la versi�
 - "Gestionar venta": progreso del pedido, datos de cliente/pago/envío, tracking, historial y acciones según el estado
 - Clientes: pedidos, total gastado y última compra, con acceso directo a sus ventas
 - "Generar venta" con selector de clientes anteriores (autocompleta email, teléfono y dirección)
-- Usuarios: alta, edición y baja de administradores
+- Usuarios: alta, edición y baja de administradores y viajantes
+- Mis entregas (viajante): envíos asignados con dirección ("Cómo llegar" en Maps), teléfono, ítems y confirmación con código
+- Mails con diseño propio: recuperación de contraseña y "Tu pedido está en camino" con el código de entrega
+- Subida de imágenes de producto (arrastrar y soltar) con Cloudinary
 - Configuración: editar perfil (cambiar el email pide la contraseña) y cambio de contraseña
 - Recuperación de contraseña por mail (Brevo) y botón para mostrar/ocultar contraseñas
 - Responsive, skeletons de carga, estados vacíos y toasts

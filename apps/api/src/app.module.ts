@@ -13,6 +13,7 @@ import { CustomersModule } from './customers/customers.module.js';
 import { UsersModule } from './users/users.module.js';
 import { MailModule } from './mail/mail.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
+import { UploadsModule } from './uploads/uploads.module.js';
 import { HealthController } from './health/health.controller.js';
 
 @Module({
@@ -33,6 +34,7 @@ import { HealthController } from './health/health.controller.js';
     SalesModule,
     CustomersModule,
     DashboardModule,
+    UploadsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

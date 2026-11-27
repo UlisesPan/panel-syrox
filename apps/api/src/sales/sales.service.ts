@@ -1,6 +1,8 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   canTransitionSale,
+  DELIVERY_CODE_MAX_ATTEMPTS,
+  deliveryConfirmSchema,
   paymentStatusAfter,
   saleFiltersSchema,
   saleInputSchema,
@@ -9,6 +11,7 @@ import {
   type ListQuery,
   type Paginated,
   type PaymentStatus,
+  type Delivery,
   type Sale,
   type SaleDetail,
   type SaleStatus,
@@ -19,10 +22,15 @@ import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { paginationArgs, resolveOrderBy, toPaginated } from '../common/http/pagination.js';
 import { toMoney } from '../common/utils/decimal.js';
+import { fieldError } from '../common/http/field-error.js';
+import { MailService } from '../mail/mail.service.js';
+import { orderShippedMail } from '../mail/mail-templates.js';
+import { deliveryCodeMatches, generateDeliveryCode, hashDeliveryCode } from './delivery-code.js';
 
 type SaleDto = z.output<typeof saleInputSchema>;
 type SaleStatusDto = z.output<typeof saleStatusUpdateSchema>;
 type SaleListQuery = ListQuery & z.output<typeof saleFiltersSchema>;
+type DeliveryConfirmDto = z.output<typeof deliveryConfirmSchema>;
 
 /** Estados finales: una venta entregada o cancelada ya no cambia. */
 const FINAL_STATUSES: SaleStatus[] = ['DELIVERED', 'CANCELLED'];
@@ -36,7 +44,10 @@ const STATUS_LABELS: Record<SaleStatus, string> = {
   CANCELLED: 'Cancelada',
 };
 
-const listInclude = { _count: { select: { items: true } } } satisfies Prisma.SaleInclude;
+const listInclude = {
+  _count: { select: { items: true } },
+  courier: { select: { id: true, name: true } },
+} satisfies Prisma.SaleInclude;
 const detailInclude = {
   ...listInclude,
   items: true,
@@ -64,12 +75,14 @@ export const toSaleDto = (s: SaleRow): Sale => ({
   notes: s.notes,
   total: toMoney(s.total),
   itemsCount: s._count.items,
+  courier: s.courier,
   createdAt: s.createdAt.toISOString(),
 });
 
 const toDetailDto = (s: SaleDetailRow): SaleDetail => ({
   ...toSaleDto(s),
   createdBy: s.createdBy,
+  hasDeliveryCode: s.deliveryCodeHash !== null,
   items: s.items.map((i) => ({
     id: i.id,
     productId: i.productId,
@@ -91,7 +104,12 @@ const toDetailDto = (s: SaleDetailRow): SaleDetail => ({
 
 @Injectable()
 export class SalesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(SalesService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   async findAll(query: SaleListQuery): Promise<Paginated<Sale>> {
     const search = query.search?.replace(/^#/, '');
@@ -208,7 +226,10 @@ export class SalesService {
    * El `where` incluye el estado leído para que dos cambios simultáneos no se pisen.
    */
   async updateStatus(id: string, dto: SaleStatusDto, user: SessionUser): Promise<SaleDetail> {
-    const sale = await this.prisma.sale.findUnique({ where: { id }, select: { status: true, paymentStatus: true } });
+    const sale = await this.prisma.sale.findUnique({
+      where: { id },
+      select: { status: true, paymentStatus: true, customerEmail: true, courierId: true },
+    });
     if (!sale) throw new NotFoundException('La venta no existe.');
     if (FINAL_STATUSES.includes(sale.status)) {
       throw new BadRequestException('La venta ya está finalizada y no puede cambiar de estado.');
@@ -220,19 +241,189 @@ export class SalesService {
           : `No se puede pasar de "${STATUS_LABELS[sale.status]}" a "${STATUS_LABELS[dto.status]}".`,
       );
     }
+    const shipping = dto.status === 'SHIPPED';
+    const courier = shipping && dto.courierId ? await this.findCourier(dto.courierId) : null;
+    // Con viajante y email del cliente se genera el código de entrega (sin email no hay cómo hacérselo llegar).
+    const code = courier && sale.customerEmail ? generateDeliveryCode() : null;
+
     const paymentStatus = paymentStatusAfter(dto.status, sale.paymentStatus);
-    const autoNote = paymentStatus === 'REFUNDED' && sale.paymentStatus === 'PAID' ? 'Pago reembolsado' : null;
-    const note = [dto.note, autoNote].filter(Boolean).join(' · ') || null;
+    const autoNotes = [
+      paymentStatus === 'REFUNDED' && sale.paymentStatus === 'PAID' && 'Pago reembolsado',
+      courier && `Viajante: ${courier.name}`,
+      dto.status === 'DELIVERED' && sale.courierId && 'Entrega confirmada por administración',
+    ];
+    const note = [dto.note, ...autoNotes].filter(Boolean).join(' · ') || null;
 
     await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.sale.updateMany({
         where: { id, status: sale.status },
-        data: { status: dto.status, paymentStatus, ...(dto.trackingNumber && { trackingNumber: dto.trackingNumber }) },
+        data: {
+          status: dto.status,
+          paymentStatus,
+          ...(dto.trackingNumber && { trackingNumber: dto.trackingNumber }),
+          ...(shipping && {
+            courierId: courier?.id ?? null,
+            deliveryCodeHash: code ? hashDeliveryCode(id, code) : null,
+            deliveryCodeAttempts: 0,
+          }),
+          // Al entregar o cancelar, el código deja de tener sentido.
+          ...(!shipping && { deliveryCodeHash: null }),
+        },
       });
       if (count === 0) throw new ConflictException('La venta cambió mientras la editabas. Recargá e intentá de nuevo.');
       await tx.saleStatusChange.create({ data: { saleId: id, status: dto.status, note, changedById: user.id } });
     });
-    return this.findOne(id);
+
+    const updated = await this.findOne(id);
+    if (shipping) this.sendShippedMail(updated, code);
+    return updated;
+  }
+
+  /** Genera un código nuevo (invalida el anterior y reinicia los intentos) y se lo vuelve a mandar al cliente. */
+  async resendDeliveryCode(id: string): Promise<SaleDetail> {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id },
+      select: { status: true, courierId: true, customerEmail: true },
+    });
+    if (!sale) throw new NotFoundException('La venta no existe.');
+    if (sale.status !== 'SHIPPED' || !sale.courierId) {
+      throw new BadRequestException('Solo se reenvía el código de una venta enviada con viajante.');
+    }
+    if (!sale.customerEmail) throw new BadRequestException('La venta no tiene email del cliente.');
+
+    const code = generateDeliveryCode();
+    await this.prisma.sale.update({
+      where: { id },
+      data: { deliveryCodeHash: hashDeliveryCode(id, code), deliveryCodeAttempts: 0 },
+    });
+    const updated = await this.findOne(id);
+    this.sendShippedMail(updated, code);
+    return updated;
+  }
+
+  /** "Mis entregas": envíos asignados al viajante (pendientes o los últimos entregados). */
+  async findDeliveries(courierId: string, status: 'SHIPPED' | 'DELIVERED'): Promise<Delivery[]> {
+    const sales = await this.prisma.sale.findMany({
+      where: { courierId, status },
+      orderBy: { updatedAt: status === 'SHIPPED' ? 'asc' : 'desc' },
+      take: 50,
+      include: {
+        items: { select: { id: true, productName: true, variantLabel: true, quantity: true } },
+        statusHistory: {
+          where: { status: { in: ['SHIPPED', 'DELIVERED'] } },
+          select: { status: true, createdAt: true },
+        },
+      },
+    });
+    return sales.map((s) => {
+      const at = (step: SaleStatus) => s.statusHistory.find((h) => h.status === step)?.createdAt.toISOString() ?? null;
+      return {
+        id: s.id,
+        number: s.number,
+        status: s.status,
+        customerName: s.customerName,
+        customerPhone: s.customerPhone,
+        shippingAddress: s.shippingAddress,
+        trackingNumber: s.trackingNumber,
+        notes: s.notes,
+        total: toMoney(s.total),
+        items: s.items,
+        requiresCode: s.deliveryCodeHash !== null,
+        attemptsLeft: Math.max(0, DELIVERY_CODE_MAX_ATTEMPTS - s.deliveryCodeAttempts),
+        shippedAt: at('SHIPPED'),
+        deliveredAt: at('DELIVERED'),
+      };
+    });
+  }
+
+  /**
+   * El viajante confirma la entrega. Si el cliente recibió un código, hay que ingresarlo:
+   * cada intento fallido se cuenta y al llegar al máximo el código se bloquea hasta que administración lo reenvíe.
+   */
+  async confirmDelivery(id: string, dto: DeliveryConfirmDto, courier: SessionUser): Promise<void> {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id },
+      select: { status: true, courierId: true, deliveryCodeHash: true, deliveryCodeAttempts: true },
+    });
+    if (!sale || sale.courierId !== courier.id)
+      throw new NotFoundException('El envío no existe o no está asignado a vos.');
+    if (sale.status !== 'SHIPPED') throw new BadRequestException('Este envío ya no está pendiente de entrega.');
+
+    if (sale.deliveryCodeHash) {
+      if (sale.deliveryCodeAttempts >= DELIVERY_CODE_MAX_ATTEMPTS) {
+        throw new BadRequestException(
+          fieldError('code', 'Se agotaron los intentos. Pedile a administración que le reenvíe el código al cliente.'),
+        );
+      }
+      if (!dto.code) throw new BadRequestException(fieldError('code', 'Ingresá el código que recibió el cliente.'));
+      if (!deliveryCodeMatches(id, dto.code, sale.deliveryCodeHash)) {
+        const { deliveryCodeAttempts } = await this.prisma.sale.update({
+          where: { id },
+          data: { deliveryCodeAttempts: { increment: 1 } },
+          select: { deliveryCodeAttempts: true },
+        });
+        const left = DELIVERY_CODE_MAX_ATTEMPTS - deliveryCodeAttempts;
+        throw new BadRequestException(
+          fieldError(
+            'code',
+            left > 0
+              ? `Código incorrecto. ${left === 1 ? 'Te queda 1 intento' : `Te quedan ${left} intentos`}.`
+              : 'Código incorrecto. Se agotaron los intentos: pedile a administración que reenvíe el código.',
+          ),
+        );
+      }
+    }
+
+    const note = [
+      sale.deliveryCodeHash ? 'Entrega confirmada con código' : 'Entrega confirmada por el viajante',
+      dto.receivedBy && `Recibió: ${dto.receivedBy}`,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.sale.updateMany({
+        where: { id, status: 'SHIPPED', courierId: courier.id },
+        data: { status: 'DELIVERED', deliveryCodeHash: null },
+      });
+      if (count === 0) throw new ConflictException('El envío cambió mientras lo confirmabas. Recargá la lista.');
+      await tx.saleStatusChange.create({ data: { saleId: id, status: 'DELIVERED', note, changedById: courier.id } });
+    });
+  }
+
+  private async findCourier(courierId: string) {
+    const courier = await this.prisma.user.findUnique({
+      where: { id: courierId },
+      select: { id: true, name: true, role: true },
+    });
+    if (!courier || courier.role !== 'COURIER') {
+      throw new BadRequestException(fieldError('courierId', 'Elegí un viajante válido.'));
+    }
+    return courier;
+  }
+
+  /** Avisa al cliente que el pedido salió (con el código si lo lleva un viajante). No bloquea la respuesta. */
+  private sendShippedMail(sale: SaleDetail, code: string | null) {
+    if (!sale.customerEmail) return;
+    const mail = orderShippedMail(this.mail.brand, {
+      customerName: sale.customerName,
+      number: sale.number,
+      items: sale.items.map((i) => ({
+        productName: i.productName,
+        variantLabel: i.variantLabel,
+        quantity: i.quantity,
+        subtotal: this.mail.formatMoney(i.subtotal),
+      })),
+      total: this.mail.formatMoney(sale.total),
+      shippingAddress: sale.shippingAddress,
+      trackingNumber: sale.trackingNumber,
+      courierName: sale.courier?.name ?? null,
+      code,
+    });
+    this.mail
+      .send({ to: { email: sale.customerEmail, name: sale.customerName }, ...mail })
+      .catch((error: unknown) =>
+        this.logger.error(`No se pudo enviar el aviso de envío de #${sale.number}: ${String(error)}`),
+      );
   }
 
   /** Solo mientras la venta está pendiente se puede registrar un pago fallido (o volverlo a pendiente). */

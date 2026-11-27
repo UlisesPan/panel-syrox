@@ -1,12 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useFieldArray, useForm, useWatch, type Control, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ImagePlusIcon, PlusCircleIcon, Trash2Icon, WandSparklesIcon, XIcon } from "lucide-react";
+import {
+  LinkIcon,
+  PlusCircleIcon,
+  StarIcon,
+  Trash2Icon,
+  UploadCloudIcon,
+  WandSparklesIcon,
+  XIcon,
+} from "lucide-react";
 import {
   PRODUCT_STATUSES,
+  UPLOAD_ACCEPT,
+  UPLOAD_MAX_MB,
   buildVariantCombinations,
   productInputSchema,
   suggestVariantSku,
@@ -21,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldError, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FormActions } from "@/components/form/form-actions";
@@ -31,6 +43,9 @@ import { ProductThumb } from "@/components/product-thumb";
 import { useResourceMutations } from "@/hooks/use-resource";
 import { siteConfig } from "@/config/site";
 import { handleFormError } from "@/lib/form-errors";
+import { getErrorMessage } from "@/lib/api-client";
+import { uploadImage, useUploadStatus, validateImage } from "@/lib/uploads";
+import { cn } from "@/lib/utils";
 import { productStatusMeta } from "@/lib/labels";
 import { useBrandOptions } from "@/features/brands/brands.resource";
 import { useCategoryOptions } from "@/features/categories/categories.resource";
@@ -177,10 +192,23 @@ export function ProductForm({ product }: { product?: ProductDetail }) {
   );
 }
 
+const MAX_IMAGES = 8;
+
 function ImagesCard({ form }: { form: Form }) {
   const images = useWatch({ control: form.control, name: "images" }) ?? [];
+  const { data: uploadStatus } = useUploadStatus();
+  const canUpload = uploadStatus?.enabled ?? false;
   const [url, setUrl] = useState("");
+  const [uploading, setUploading] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const error = form.formState.errors.images;
+  const full = images.length + uploading >= MAX_IMAGES;
+
+  const setImages = (next: string[]) => {
+    form.clearErrors("images");
+    form.setValue("images", next, { shouldDirty: true });
+  };
 
   const add = () => {
     const value = url.trim();
@@ -191,22 +219,97 @@ function ImagesCard({ form }: { form: Form }) {
       form.setError("images", { message: "Ingresá una URL válida (https://…)" });
       return;
     }
-    form.clearErrors("images");
-    form.setValue("images", [...images, value], { shouldDirty: true });
+    setImages([...images, value]);
     setUrl("");
+  };
+
+  /** Sube los archivos en paralelo y agrega cada URL apenas termina (respetando el máximo). */
+  const uploadFiles = async (files: File[]) => {
+    const room = MAX_IMAGES - images.length - uploading;
+    const accepted = files.filter((file) => {
+      const problem = validateImage(file);
+      if (problem) toast.error(problem);
+      return !problem;
+    });
+    if (accepted.length > room) toast.warning(`Se pueden cargar hasta ${MAX_IMAGES} imágenes por producto.`);
+    const batch = accepted.slice(0, Math.max(0, room));
+    if (batch.length === 0) return;
+
+    setUploading((n) => n + batch.length);
+    await Promise.all(
+      batch.map(async (file) => {
+        try {
+          const uploaded = await uploadImage(file);
+          form.setValue("images", [...(form.getValues("images") ?? []), uploaded], { shouldDirty: true });
+        } catch (uploadError) {
+          toast.error(getErrorMessage(uploadError));
+        } finally {
+          setUploading((n) => n - 1);
+        }
+      }),
+    );
   };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Imágenes del producto</CardTitle>
-        <CardDescription>Pegá la URL de cada imagen. La primera se usa como portada.</CardDescription>
+        <CardDescription>
+          {canUpload
+            ? "Subí fotos desde tu equipo o pegá una URL. La primera se usa como portada."
+            : "Pegá la URL de cada imagen. La primera se usa como portada."}
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {canUpload && (
+          <button
+            type="button"
+            disabled={full}
+            onClick={() => fileInput.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              void uploadFiles([...e.dataTransfer.files]);
+            }}
+            className={cn(
+              "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors",
+              "hover:border-brand/60 hover:bg-brand/5 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+              "disabled:pointer-events-none disabled:opacity-50",
+              dragging && "border-brand bg-brand/5",
+            )}
+          >
+            <span className="grid size-11 place-items-center rounded-full bg-brand/10 text-brand">
+              <UploadCloudIcon className="size-5" />
+            </span>
+            <span className="text-sm font-medium">
+              {full ? `Máximo ${MAX_IMAGES} imágenes` : "Arrastrá tus imágenes o hacé clic para elegirlas"}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              JPG, PNG, WebP o AVIF · hasta {UPLOAD_MAX_MB} MB cada una
+            </span>
+          </button>
+        )}
+        <input
+          ref={fileInput}
+          type="file"
+          accept={UPLOAD_ACCEPT.join(",")}
+          multiple
+          hidden
+          onChange={(e) => {
+            void uploadFiles([...(e.target.files ?? [])]);
+            e.target.value = "";
+          }}
+        />
+
         <div className="flex gap-2">
           <InputGroup>
             <InputGroupAddon>
-              <ImagePlusIcon />
+              <LinkIcon />
             </InputGroupAddon>
             <InputGroupInput
               value={url}
@@ -217,12 +320,12 @@ function ImagesCard({ form }: { form: Form }) {
                   add();
                 }
               }}
-              placeholder="https://…"
+              placeholder={canUpload ? "O pegá una URL: https://…" : "https://…"}
               aria-label="URL de imagen"
-              disabled={images.length >= 8}
+              disabled={full}
             />
           </InputGroup>
-          <Button type="button" variant="outline" onClick={add} disabled={images.length >= 8}>
+          <Button type="button" variant="outline" onClick={add} disabled={full}>
             Agregar
           </Button>
         </div>
@@ -231,32 +334,47 @@ function ImagesCard({ form }: { form: Form }) {
             {error.message ?? (Array.isArray(error) ? error.find(Boolean)?.message : undefined)}
           </FieldError>
         )}
-        {images.length > 0 && (
+        {(images.length > 0 || uploading > 0) && (
           <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4">
             {images.map((src, index) => (
               <li key={src} className="group relative">
-                <ProductThumb src={src} alt={`Imagen ${index + 1}`} className="aspect-square size-full" />
-                {index === 0 && (
+                <ProductThumb src={src} alt={`Imagen ${index + 1}`} size={240} className="aspect-square size-full" />
+                {index === 0 ? (
                   <Badge className="absolute bottom-1 left-1" variant="secondary">
                     Portada
                   </Badge>
+                ) : (
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="secondary"
+                    className="absolute bottom-1 left-1 opacity-0 shadow transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                    onClick={() => setImages([src, ...images.filter((_, i) => i !== index)])}
+                  >
+                    <StarIcon /> Portada
+                  </Button>
                 )}
                 <Button
                   type="button"
                   size="icon-xs"
                   variant="secondary"
                   className="absolute top-1 right-1 opacity-0 shadow transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  onClick={() =>
-                    form.setValue(
-                      "images",
-                      images.filter((_, i) => i !== index),
-                      { shouldDirty: true },
-                    )
-                  }
+                  onClick={() => setImages(images.filter((_, i) => i !== index))}
                   aria-label={`Quitar imagen ${index + 1}`}
                 >
                   <XIcon />
                 </Button>
+              </li>
+            ))}
+            {Array.from({ length: uploading }, (_, index) => (
+              <li
+                key={`uploading-${index}`}
+                className="grid aspect-square place-items-center rounded-md border border-dashed bg-muted/50 text-muted-foreground"
+              >
+                <span className="flex flex-col items-center gap-2 text-xs">
+                  <Spinner className="size-5" />
+                  Subiendo…
+                </span>
               </li>
             ))}
           </ul>

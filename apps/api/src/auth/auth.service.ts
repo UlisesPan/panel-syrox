@@ -13,6 +13,8 @@ import {
 import type { z } from 'zod';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MailService } from '../mail/mail.service.js';
+import { passwordResetMail } from '../mail/mail-templates.js';
+import { fieldError } from '../common/http/field-error.js';
 import type { Env } from '../config/env.js';
 import type { JwtPayload } from './auth.constants.js';
 
@@ -28,9 +30,6 @@ const RESET_TOKEN_TTL_MINUTES = 30;
 const DUMMY_HASH = bcrypt.hashSync('timing-attack-dummy-password', 10);
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
-
-/** Error asociado a un campo del formulario (el front lo muestra debajo del input). */
-const fieldError = (path: string, message: string) => ({ message, errors: [{ path, message }] });
 
 @Injectable()
 export class AuthService {
@@ -50,7 +49,10 @@ export class AuthService {
       throw new UnauthorizedException('Correo o contraseña incorrectos.');
     }
     const session = await this.issueSession(user.id, user.tokenVersion, remember);
-    return { ...session, user: { id: user.id, email: user.email, name: user.name } satisfies SessionUser };
+    return {
+      ...session,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role } satisfies SessionUser,
+    };
   }
 
   /** Firma el JWT de sesión. `remember` define la duración y si la cookie es persistente. */
@@ -84,7 +86,7 @@ export class AuthService {
     return this.prisma.user.update({
       where: { id: userId },
       data: { name, email },
-      select: { id: true, email: true, name: true },
+      select: { id: true, email: true, name: true, role: true },
     });
   }
 
@@ -113,9 +115,11 @@ export class AuthService {
     this.mail
       .send({
         to: { email: user.email, name: user.name },
-        subject: 'Restablecé tu contraseña',
-        text: `Hola ${user.name}:\n\nPara elegir una contraseña nueva entrá a este enlace (vence en ${RESET_TOKEN_TTL_MINUTES} minutos):\n${link.href}\n\nSi no lo pediste, ignorá este mail.`,
-        html: resetEmailHtml(user.name, link.href),
+        ...passwordResetMail(this.mail.brand, {
+          name: user.name,
+          link: link.href,
+          ttlMinutes: RESET_TOKEN_TTL_MINUTES,
+        }),
       })
       .catch((error: unknown) => this.logger.error(`No se pudo enviar el mail de recuperación: ${String(error)}`));
   }
@@ -135,7 +139,9 @@ export class AuthService {
   }
 
   async assertEmailAvailable(email: string, excludeUserId?: string) {
-    const taken = await this.prisma.user.count({ where: { email, id: excludeUserId ? { not: excludeUserId } : undefined } });
+    const taken = await this.prisma.user.count({
+      where: { email, id: excludeUserId ? { not: excludeUserId } : undefined },
+    });
     if (taken) throw new ConflictException(fieldError('email', 'Ya existe un usuario con ese email.'));
   }
 
@@ -149,16 +155,4 @@ export class AuthService {
   static hashPassword(password: string) {
     return bcrypt.hash(password, 10);
   }
-}
-
-const escapeHtml = (value: string) =>
-  value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-
-function resetEmailHtml(name: string, href: string) {
-  return `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:auto;color:#18181b">
-  <h2 style="margin-bottom:8px">Restablecé tu contraseña</h2>
-  <p>Hola ${escapeHtml(name)}, recibimos un pedido para cambiar la contraseña de tu cuenta.</p>
-  <p style="margin:24px 0"><a href="${escapeHtml(href)}" style="background:#18181b;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Elegir nueva contraseña</a></p>
-  <p style="color:#71717a;font-size:13px">El enlace vence en ${RESET_TOKEN_TTL_MINUTES} minutos. Si no lo pediste, ignorá este mail: tu contraseña no cambia.</p>
-</div>`;
 }

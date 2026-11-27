@@ -1,4 +1,4 @@
-import type { PaymentMethod, PaymentStatus, ProductStatus, SaleStatus } from "@panel/shared";
+import type { PaymentMethod, PaymentStatus, ProductStatus, SaleStatus, UserRole } from "@panel/shared";
 
 type BadgeVariant = "success" | "info" | "warning" | "violet" | "destructive" | "secondary" | "outline";
 
@@ -31,6 +31,15 @@ export const paymentMethodLabels: Record<PaymentMethod, string> = {
   CREDIT_CARD: "Tarjeta de crédito",
   TRANSFER: "Transferencia",
   OTHER: "Otro",
+};
+
+export const userRoleMeta: Record<UserRole, { label: string; variant: BadgeVariant; description: string }> = {
+  ADMIN: { label: "Administrador", variant: "violet", description: "Acceso completo al panel." },
+  COURIER: {
+    label: "Viajante",
+    variant: "info",
+    description: "Solo ve sus envíos y confirma las entregas con el código del cliente.",
+  },
 };
 
 export const toOptions = <K extends string>(record: Record<K, string | { label: string }>) =>

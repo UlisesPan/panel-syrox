@@ -14,13 +14,15 @@ import {
 import type { z } from 'zod';
 import type { Env } from '../config/env.js';
 import { AuthService } from './auth.service.js';
-import { Public, SESSION_COOKIE } from './auth.constants.js';
+import { Public, Roles, SESSION_COOKIE } from './auth.constants.js';
 import { CurrentUser } from './current-user.decorator.js';
 import type { AuthenticatedRequest } from './jwt-auth.guard.js';
 
 const STRICT_LIMIT = { default: { limit: 5, ttl: 60_000 } };
 
 @ApiTags('Auth')
+// Sesión, perfil y contraseña: los usa cualquier rol.
+@Roles('ADMIN', 'COURIER')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -84,7 +86,9 @@ export class AuthController {
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('forgot-password')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Envía un mail con el enlace para restablecer la contraseña (no revela si el email existe)' })
+  @ApiOperation({
+    summary: 'Envía un mail con el enlace para restablecer la contraseña (no revela si el email existe)',
+  })
   forgotPassword(@Body({ schema: forgotPasswordSchema }) dto: z.output<typeof forgotPasswordSchema>) {
     return this.auth.requestPasswordReset(dto.email);
   }

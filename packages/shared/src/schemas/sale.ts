@@ -76,7 +76,28 @@ export const saleStatusUpdateSchema = z.object({
   note: optionalText(500),
   /** Solo se guarda si viene informado (ej: al marcar la venta como enviada). */
   trackingNumber: optionalText(100),
+  /**
+   * Viajante que entrega el pedido (solo al pasar a "Enviada"). Si se asigna y la venta tiene email,
+   * el cliente recibe un código de entrega que el viajante ingresa para confirmarla.
+   */
+  courierId: z.string().min(1).nullable().default(null),
 });
+
+/** Cantidad de intentos fallidos permitidos antes de bloquear el código de entrega. */
+export const DELIVERY_CODE_MAX_ATTEMPTS = 5;
+
+export const deliveryConfirmSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/, 'El código tiene 4 números')
+    .nullable()
+    .default(null),
+  /** Quién recibió el pedido (opcional). */
+  receivedBy: optionalText(120),
+});
+
+export type DeliveryConfirmInput = z.input<typeof deliveryConfirmSchema>;
 
 export const salePaymentUpdateSchema = z.object({
   paymentStatus: z.enum(MANUAL_PAYMENT_STATUSES),
@@ -117,6 +138,8 @@ export interface Sale {
   notes: string | null;
   total: number;
   itemsCount: number;
+  /** Viajante asignado al envío. */
+  courier: { id: string; name: string } | null;
   createdAt: string;
 }
 
@@ -140,7 +163,29 @@ export interface SaleStatusChange {
 
 export interface SaleDetail extends Sale {
   items: SaleItem[];
+  /** Hay un código de entrega vigente (se mandó por mail al cliente). */
+  hasDeliveryCode: boolean;
   createdBy: { id: string; name: string } | null;
   /** Más reciente primero. */
   statusHistory: SaleStatusChange[];
+}
+
+/** Envío asignado a un viajante, tal como lo ve en "Mis entregas". */
+export interface Delivery {
+  id: string;
+  number: number;
+  status: SaleStatus;
+  customerName: string;
+  customerPhone: string | null;
+  shippingAddress: string | null;
+  trackingNumber: string | null;
+  notes: string | null;
+  total: number;
+  items: Array<{ id: string; productName: string; variantLabel: string | null; quantity: number }>;
+  /** Si es true, para confirmar hay que ingresar el código que recibió el cliente. */
+  requiresCode: boolean;
+  /** Intentos restantes con el código actual. */
+  attemptsLeft: number;
+  shippedAt: string | null;
+  deliveredAt: string | null;
 }

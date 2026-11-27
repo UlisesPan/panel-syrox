@@ -1,9 +1,17 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { listQuerySchema, userCreateSchema, userUpdateSchema, type SessionUser } from '@panel/shared';
+import {
+  listQuerySchema,
+  userCreateSchema,
+  userFiltersSchema,
+  userUpdateSchema,
+  type SessionUser,
+} from '@panel/shared';
 import type { z } from 'zod';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { UsersService } from './users.service.js';
+
+const userListQuerySchema = listQuerySchema.extend(userFiltersSchema.shape);
 
 @ApiTags('Usuarios')
 @Controller('users')
@@ -11,8 +19,8 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Usuarios administradores del panel' })
-  findAll(@Query({ schema: listQuerySchema }) query: z.output<typeof listQuerySchema>) {
+  @ApiOperation({ summary: 'Usuarios del panel (administradores y viajantes)' })
+  findAll(@Query({ schema: userListQuerySchema }) query: z.output<typeof userListQuerySchema>) {
     return this.users.findAll(query);
   }
 
@@ -22,14 +30,18 @@ export class UsersController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Crea un usuario administrador' })
+  @ApiOperation({ summary: 'Crea un usuario (administrador o viajante)' })
   create(@Body({ schema: userCreateSchema }) dto: z.output<typeof userCreateSchema>) {
     return this.users.create(dto);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body({ schema: userUpdateSchema }) dto: z.output<typeof userUpdateSchema>) {
-    return this.users.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body({ schema: userUpdateSchema }) dto: z.output<typeof userUpdateSchema>,
+    @CurrentUser() user: SessionUser,
+  ) {
+    return this.users.update(id, dto, user.id);
   }
 
   @Delete(':id')

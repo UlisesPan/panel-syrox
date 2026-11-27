@@ -12,6 +12,8 @@ export const metadata: Metadata = {
   title: { default: `Panel · ${siteConfig.name}`, template: `%s · ${siteConfig.name}` },
   description: `Panel de administración de ${siteConfig.name}`,
   robots: { index: false, follow: false },
+  // El logo de la tienda también es el ícono de la pestaña.
+  ...(siteConfig.logo && { icons: { icon: siteConfig.logo, apple: siteConfig.logo } }),
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

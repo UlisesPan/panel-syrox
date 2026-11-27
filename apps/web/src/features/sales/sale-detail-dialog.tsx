@@ -9,10 +9,12 @@ import {
   RotateCcwIcon,
   CreditCardIcon,
   HistoryIcon,
+  KeyRoundIcon,
   MailIcon,
   MapPinIcon,
   PackageIcon,
   PhoneIcon,
+  RefreshCwIcon,
   ReceiptTextIcon,
   TruckIcon,
   UserIcon,
@@ -23,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +35,13 @@ import { useResourceDetail } from "@/hooks/use-resource";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { paymentMethodLabels, saleStatusMeta } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { salesResource, useUpdatePaymentStatus, useUpdateSaleStatus } from "./sales.resource";
+import {
+  salesResource,
+  useCouriers,
+  useResendDeliveryCode,
+  useUpdatePaymentStatus,
+  useUpdateSaleStatus,
+} from "./sales.resource";
 
 const FLOW: SaleStatus[] = ["PENDING", "PAID", "PREPARING", "SHIPPED", "DELIVERED"];
 
@@ -88,16 +97,21 @@ export function SaleDetailDialog({ saleId, onClose }: { saleId: string | null; o
               </div>
 
               <Panel icon={MapPinIcon} title="Envío">
-                <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:gap-6">
                   <div>
                     <p className="text-xs text-muted-foreground">Dirección</p>
                     <p className="font-medium">{sale.shippingAddress ?? "Sin dirección registrada"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Viajante</p>
+                    <p className="font-medium">{sale.courier?.name ?? "—"}</p>
                   </div>
                   <div className="sm:text-right">
                     <p className="text-xs text-muted-foreground">Tracking</p>
                     <p className="font-mono font-medium">{sale.trackingNumber ?? "—"}</p>
                   </div>
                 </div>
+                {sale.status === "SHIPPED" && sale.courier && <DeliveryCodeInfo sale={sale} />}
               </Panel>
 
               <Panel icon={ReceiptTextIcon} title={`Productos (${sale.items.length})`}>
@@ -265,12 +279,51 @@ function StatusTimeline({ history }: { history: SaleDetail["statusHistory"] }) {
   );
 }
 
+/** Código de entrega: estado y reenvío (si el cliente lo perdió o el viajante agotó los intentos). */
+function DeliveryCodeInfo({ sale }: { sale: SaleDetail }) {
+  const resend = useResendDeliveryCode();
+  if (!sale.customerEmail) {
+    return (
+      <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+        La venta no tiene email: {sale.courier?.name} confirma la entrega sin código.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+      <p className="flex items-center gap-2 text-muted-foreground">
+        <KeyRoundIcon className="size-3.5 shrink-0" />
+        {sale.hasDeliveryCode
+          ? `El cliente recibió un código de entrega en ${sale.customerEmail}. ${sale.courier?.name} lo ingresa al entregar.`
+          : "No hay un código de entrega vigente."}
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 shrink-0 bg-background text-xs"
+        disabled={resend.isPending}
+        onClick={() => resend.mutate({ id: sale.id })}
+      >
+        {resend.isPending ? <Spinner /> : <RefreshCwIcon />}
+        Reenviar código
+      </Button>
+    </div>
+  );
+}
+
+const NO_COURIER = "none";
+
 function SaleActions({ sale }: { sale: SaleDetail }) {
   const updateStatus = useUpdateSaleStatus();
   const [note, setNote] = useState("");
   const [tracking, setTracking] = useState(sale.trackingNumber ?? "");
   const [confirmCancel, setConfirmCancel] = useState(false);
   const next = NEXT_STEP[sale.status];
+  const shipping = next?.status === "SHIPPED";
+  const couriers = useCouriers(shipping);
+  const [courierId, setCourierId] = useState<string | null>(null);
+  // Por defecto se propone el primer viajante: el flujo normal es que lo entregue uno.
+  const selectedCourier = courierId ?? couriers.data?.[0]?.id ?? NO_COURIER;
 
   if (!next) {
     return (
@@ -288,13 +341,50 @@ function SaleActions({ sale }: { sale: SaleDetail }) {
       status,
       note: note.trim() || null,
       trackingNumber: status === "SHIPPED" ? tracking.trim() || null : null,
+      courierId: status === "SHIPPED" && selectedCourier !== NO_COURIER ? selectedCourier : null,
     });
   const NextIcon = next.icon;
   const canCancel = canTransitionSale(sale.status, "CANCELLED");
+  // Con viajante, la entrega la confirma él con el código; administración puede hacerlo a mano como respaldo.
+  const nextLabel = sale.status === "SHIPPED" && sale.courier ? "Confirmar entrega manualmente" : next.label;
 
   return (
     <div className="space-y-4 border-t bg-muted/30 px-5 py-4">
-      <div className={cn("grid gap-4", next.status === "SHIPPED" && "sm:grid-cols-[1fr_14rem]")}>
+      {shipping && (
+        <div className="space-y-2">
+          <Label htmlFor="status-courier">Viajante que lo entrega</Label>
+          <Select value={selectedCourier} onValueChange={setCourierId} disabled={couriers.isPending}>
+            <SelectTrigger id="status-courier" className="w-full bg-background">
+              <SelectValue placeholder="Cargando viajantes…" />
+            </SelectTrigger>
+            <SelectContent>
+              {couriers.data?.map((courier) => (
+                <SelectItem key={courier.id} value={courier.id}>
+                  {courier.name}
+                  <span className="text-muted-foreground">
+                    · {courier.pendingDeliveries} {courier.pendingDeliveries === 1 ? "envío" : "envíos"} en curso
+                  </span>
+                </SelectItem>
+              ))}
+              <SelectItem value={NO_COURIER}>Sin viajante (correo o retiro en tienda)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {selectedCourier === NO_COURIER
+              ? "Administración confirma la entrega desde acá."
+              : sale.customerEmail
+                ? `El cliente recibe por mail un código de 4 números que le da al viajante al recibir el pedido.`
+                : "La venta no tiene email: el viajante confirmará la entrega sin código."}
+          </p>
+        </div>
+      )}
+      {sale.status === "SHIPPED" && sale.courier && (
+        <p className="text-xs text-muted-foreground">
+          {sale.courier.name} confirma la entrega desde &quot;Mis entregas&quot; con el código del cliente. Usá el botón
+          de abajo solo si no puede hacerlo.
+        </p>
+      )}
+      <div className={cn("grid gap-4", shipping && "sm:grid-cols-[1fr_14rem]")}>
         <div className="space-y-2">
           <Label htmlFor="status-note">Nota para el cambio de estado (opcional)</Label>
           <Textarea
@@ -307,7 +397,7 @@ function SaleActions({ sale }: { sale: SaleDetail }) {
             className="resize-none bg-background"
           />
         </div>
-        {next.status === "SHIPPED" && (
+        {shipping && (
           <div className="space-y-2">
             <Label htmlFor="status-tracking">N° de tracking</Label>
             <Input
@@ -336,7 +426,7 @@ function SaleActions({ sale }: { sale: SaleDetail }) {
         )}
         <Button disabled={updateStatus.isPending} onClick={() => change(next.status).catch(() => {})}>
           {updateStatus.isPending ? <Spinner /> : <NextIcon />}
-          {next.label}
+          {nextLabel}
         </Button>
       </div>
 

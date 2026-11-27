@@ -2,10 +2,11 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useWatch } from "react-hook-form";
 import { userCreateSchema, userUpdateSchema, type User, type UserCreateInput } from "@panel/shared";
 import { CrudPage, type ResourceFormProps } from "@/components/crud/crud-page";
 import type { DataTableColumn } from "@/components/data-table/data-table";
-import { TextField } from "@/components/form/form-field";
+import { SelectField, TextField } from "@/components/form/form-field";
 import { FormActions } from "@/components/form/form-actions";
 import { Badge } from "@/components/ui/badge";
 import { FieldGroup } from "@/components/ui/field";
@@ -13,6 +14,7 @@ import { useSessionUser } from "@/features/auth/use-session";
 import { defineResource } from "@/lib/resource";
 import { formatDate, initials } from "@/lib/format";
 import { handleFormError } from "@/lib/form-errors";
+import { toOptions, userRoleMeta } from "@/lib/labels";
 
 const usersResource = defineResource<User, UserCreateInput>({
   key: "users",
@@ -45,9 +47,21 @@ function columns(currentUserId?: string): DataTableColumn<User>[] {
       ),
     },
     {
-      id: "sales",
-      header: "Ventas registradas",
-      cell: (u) => <span className="tabular-nums">{u.salesCount}</span>,
+      id: "role",
+      header: "Rol",
+      sortKey: "role",
+      cell: (u) => <Badge variant={userRoleMeta[u.role].variant}>{userRoleMeta[u.role].label}</Badge>,
+    },
+    {
+      id: "activity",
+      header: "Actividad",
+      cell: (u) => (
+        <span className="text-muted-foreground tabular-nums">
+          {u.role === "COURIER"
+            ? `${u.pendingDeliveries} ${u.pendingDeliveries === 1 ? "envío" : "envíos"} en curso`
+            : `${u.salesCount} ${u.salesCount === 1 ? "venta registrada" : "ventas registradas"}`}
+        </span>
+      ),
     },
     {
       id: "createdAt",
@@ -59,11 +73,12 @@ function columns(currentUserId?: string): DataTableColumn<User>[] {
 }
 
 /** Alta: nombre, email y contraseña inicial. Edición: solo nombre y email (la contraseña la cambia cada usuario). */
-function UserForm({ item, onSubmit, onCancel, isPending }: ResourceFormProps<User, UserCreateInput>) {
+function UserForm({ item, onSubmit, onCancel, isPending, isSelf }: ResourceFormProps<User, UserCreateInput> & { isSelf: boolean }) {
   const form = useForm<UserCreateInput>({
     resolver: zodResolver(item ? userUpdateSchema : userCreateSchema) as never,
-    defaultValues: { name: item?.name ?? "", email: item?.email ?? "", password: "" },
+    defaultValues: { name: item?.name ?? "", email: item?.email ?? "", role: item?.role ?? "ADMIN", password: "" },
   });
+  const role = useWatch({ control: form.control, name: "role" }) ?? "ADMIN";
   const submit = form.handleSubmit(async (values) => {
     try {
       await onSubmit(values);
@@ -76,6 +91,15 @@ function UserForm({ item, onSubmit, onCancel, isPending }: ResourceFormProps<Use
       <FieldGroup>
         <TextField control={form.control} name="name" label="Nombre" required autoFocus />
         <TextField control={form.control} name="email" type="email" label="Email" required />
+        <SelectField
+          control={form.control}
+          name="role"
+          label="Rol"
+          options={toOptions(userRoleMeta)}
+          disabled={isSelf}
+          description={isSelf ? "No podés cambiar tu propio rol." : userRoleMeta[role].description}
+          required
+        />
         {!item && (
           <TextField
             control={form.control}
@@ -98,15 +122,15 @@ export function UsersView() {
   return (
     <CrudPage
       resource={usersResource}
-      description="Administradores con acceso al panel."
+      description="Administradores y viajantes con acceso al panel."
       columns={columns(me?.id)}
       searchPlaceholder="Buscar por nombre o email…"
       defaultSort={{ sortBy: "createdAt", sortOrder: "asc" }}
       getItemLabel={(u) => u.name}
-      renderForm={(props) => <UserForm {...props} />}
+      renderForm={(props) => <UserForm {...props} isSelf={props.item?.id === me?.id} />}
       canDelete={(u) => u.id !== me?.id}
       deleteDescription={() =>
-        "Pierde el acceso al panel de inmediato. Las ventas que registró se conservan. Esta acción no se puede deshacer."
+        "Pierde el acceso al panel de inmediato. Sus ventas se conservan y sus envíos en curso quedan sin viajante. Esta acción no se puede deshacer."
       }
     />
   );

@@ -41,25 +41,88 @@ type SeedProduct = {
 };
 
 const PRODUCTS: SeedProduct[] = [
-  { name: 'Tenis Adidas VL Court Base', brand: 'Adidas', category: ['Niño', 'Deportivo'], price: 1299, sizes: ['22', '23', '24', '25'], colors: ['Blanco', 'Negro'] },
-  { name: 'Zapatillas Adidas Grand Court Lifestyle', brand: 'Adidas', category: ['Niño', 'Deportivo'], price: 1199, sizes: ['22', '23', '24'] },
+  {
+    name: 'Tenis Adidas VL Court Base',
+    brand: 'Adidas',
+    category: ['Niño', 'Deportivo'],
+    price: 1299,
+    sizes: ['22', '23', '24', '25'],
+    colors: ['Blanco', 'Negro'],
+  },
+  {
+    name: 'Zapatillas Adidas Grand Court Lifestyle',
+    brand: 'Adidas',
+    category: ['Niño', 'Deportivo'],
+    price: 1199,
+    sizes: ['22', '23', '24'],
+  },
   { name: 'Adidas Tensaur GW6456', brand: 'Adidas', category: ['Niño', 'Escolar'], price: 899 },
-  { name: 'Adidas VL Court 3.0', brand: 'Adidas', category: ['Hombre', 'Casual'], price: 1499, sizes: ['26', '27', '28', '29'], colors: ['Blanco', 'Azul'] },
-  { name: 'Bota Escolar Audaz Juvenil Clásica', brand: 'Audaz', category: ['Niño', 'Escolar'], price: 749, sizes: ['22', '23', '24', '25'] },
+  {
+    name: 'Adidas VL Court 3.0',
+    brand: 'Adidas',
+    category: ['Hombre', 'Casual'],
+    price: 1499,
+    sizes: ['26', '27', '28', '29'],
+    colors: ['Blanco', 'Azul'],
+  },
+  {
+    name: 'Bota Escolar Audaz Juvenil Clásica',
+    brand: 'Audaz',
+    category: ['Niño', 'Escolar'],
+    price: 749,
+    sizes: ['22', '23', '24', '25'],
+  },
   { name: 'Bota Escolar Audaz Niño Agujeta', brand: 'Audaz', category: ['Niño', 'Escolar'], price: 699 },
   { name: 'Zapatillas Adidas Tensaur Run 3.0', brand: 'Adidas', category: ['Niño', 'Deportivo'], price: 999 },
-  { name: 'Botas Jeep 3561 Caballero', brand: 'Jeep', category: ['Hombre', 'Botas'], price: 1899, sizes: ['26', '27', '28', '29', '30'] },
+  {
+    name: 'Botas Jeep 3561 Caballero',
+    brand: 'Jeep',
+    category: ['Hombre', 'Botas'],
+    price: 1899,
+    sizes: ['26', '27', '28', '29', '30'],
+  },
   { name: 'Nike Court Borough Low Recraft', brand: 'Nike', category: ['Niño', 'Deportivo'], price: 1399 },
-  { name: 'Nike Air Max SC', brand: 'Nike', category: ['Hombre', 'Running'], price: 2199, sizes: ['26', '27', '28', '29'], colors: ['Negro', 'Gris'] },
-  { name: 'Nike Revolution 7', brand: 'Nike', category: ['Mujer', 'Running'], price: 1599, sizes: ['23', '24', '25', '26'] },
+  {
+    name: 'Nike Air Max SC',
+    brand: 'Nike',
+    category: ['Hombre', 'Running'],
+    price: 2199,
+    sizes: ['26', '27', '28', '29'],
+    colors: ['Negro', 'Gris'],
+  },
+  {
+    name: 'Nike Revolution 7',
+    brand: 'Nike',
+    category: ['Mujer', 'Running'],
+    price: 1599,
+    sizes: ['23', '24', '25', '26'],
+  },
   { name: 'Nike Precision 6 Basketball', brand: 'Nike', category: ['Hombre', 'Basketball'], price: 1999 },
   { name: 'Puma Smash 3.0', brand: 'Puma', category: ['Hombre', 'Casual'], price: 1099 },
-  { name: 'Puma Future Play Soccer', brand: 'Puma', category: ['Hombre', 'Soccer'], price: 1299, sizes: ['26', '27', '28'] },
+  {
+    name: 'Puma Future Play Soccer',
+    brand: 'Puma',
+    category: ['Hombre', 'Soccer'],
+    price: 1299,
+    sizes: ['26', '27', '28'],
+  },
   { name: 'Puma Carina 2.0', brand: 'Puma', category: ['Mujer', 'Casual'], price: 1249, colors: ['Blanco', 'Rosa'] },
   { name: 'New Balance 574 Core', brand: 'New Balance', category: ['Hombre', 'Sport'], price: 2499 },
   { name: 'New Balance Fresh Foam Arishi', brand: 'New Balance', category: ['Mujer', 'Running'], price: 1899 },
-  { name: 'Coqueta Zapato Escolar Charol', brand: 'Coqueta', category: ['Niño', 'Escolar'], price: 649, sizes: ['18', '19', '20', '21'] },
-  { name: 'Quirelli 88404 Casual Urbano', brand: 'Quirelli', category: ['Hombre', 'Casual'], price: 1349, colors: ['Negro', 'Café'] },
+  {
+    name: 'Coqueta Zapato Escolar Charol',
+    brand: 'Coqueta',
+    category: ['Niño', 'Escolar'],
+    price: 649,
+    sizes: ['18', '19', '20', '21'],
+  },
+  {
+    name: 'Quirelli 88404 Casual Urbano',
+    brand: 'Quirelli',
+    category: ['Hombre', 'Casual'],
+    price: 1349,
+    colors: ['Negro', 'Café'],
+  },
   { name: 'Quirelli 88602 Vestir', brand: 'Quirelli', category: ['Hombre', 'Casual'], price: 1449 },
   { name: 'Quirelli Mocasín Dama', brand: 'Quirelli', category: ['Mujer', 'Vestir'], price: 1199 },
   { name: 'Jeep Bota Industrial Casquillo', brand: 'Jeep', category: ['Hombre', 'Industrial'], price: 2299 },
@@ -68,12 +131,30 @@ const PRODUCTS: SeedProduct[] = [
 ];
 
 const CUSTOMERS = [
-  'Jaime González Correa', 'Santiago Pérez Baglivo', 'María Fernanda López', 'Lucía Martínez', 'Diego Ramírez',
-  'Valentina Torres', 'Martín Herrera', 'Camila Rodríguez', 'Joaquín Fernández', 'Sofía Castro',
+  'Jaime González Correa',
+  'Santiago Pérez Baglivo',
+  'María Fernanda López',
+  'Lucía Martínez',
+  'Diego Ramírez',
+  'Valentina Torres',
+  'Martín Herrera',
+  'Camila Rodríguez',
+  'Joaquín Fernández',
+  'Sofía Castro',
 ];
 const STREETS = ['Av. Insurgentes Sur', 'Calle Morelos', 'Av. Reforma', 'Calle Juárez', 'Av. Hidalgo'];
 const CITIES = ['CDMX', 'Cuautitlán Izcalli, Edo. Méx.', 'Guadalajara, Jal.', 'Monterrey, N.L.', 'Puebla, Pue.'];
-const STATUS_WEIGHTS: SaleStatus[] = ['DELIVERED', 'DELIVERED', 'DELIVERED', 'SHIPPED', 'SHIPPED', 'PREPARING', 'PAID', 'PENDING', 'CANCELLED'];
+const STATUS_WEIGHTS: SaleStatus[] = [
+  'DELIVERED',
+  'DELIVERED',
+  'DELIVERED',
+  'SHIPPED',
+  'SHIPPED',
+  'PREPARING',
+  'PAID',
+  'PENDING',
+  'CANCELLED',
+];
 const PAYMENT_METHODS: PaymentMethod[] = ['CASH', 'DEBIT_CARD', 'CREDIT_CARD', 'CREDIT_CARD', 'TRANSFER'];
 
 async function main() {
@@ -97,6 +178,16 @@ async function main() {
       email: (process.env.SEED_ADMIN_EMAIL ?? 'admin@panel.com').toLowerCase(),
       name: 'Administrador',
       passwordHash: await bcrypt.hash(process.env.SEED_ADMIN_PASSWORD ?? 'Admin123!', 10),
+    },
+  });
+
+  console.log('🛵 Viajante');
+  const courier = await prisma.user.create({
+    data: {
+      email: 'viajante@panel.com',
+      name: 'Carlos Viajante',
+      role: 'COURIER',
+      passwordHash: await bcrypt.hash('Viajante123', 10),
     },
   });
 
@@ -157,7 +248,7 @@ async function main() {
   console.log('🧾 Ventas');
   const sellable = products.filter((p) => p.status === 'ACTIVE');
   for (let i = 0; i < 60; i++) {
-    const createdAt = new Date(Date.now() - between(0, 29) * 86_400_000 - between(0, 86_399) * 1000);
+    const createdAt = new Date(Date.now() - between(0, 29) * 86_400_000 - between(600, 86_399) * 1000);
     const items = Array.from({ length: between(1, 3) }, () => {
       const product = pick(sellable);
       const variant = product.variants.length ? pick(product.variants) : null;
@@ -204,6 +295,8 @@ async function main() {
         paymentStatus,
         total: items.reduce((sum, item) => sum.add(item.subtotal), new Prisma.Decimal(0)),
         createdById: admin.id,
+        // Los envíos del seed los lleva el viajante demo (sin código: los emails del seed son ficticios).
+        courierId: shipped ? courier.id : null,
         createdAt,
         items: { create: items },
         statusHistory: {
@@ -211,9 +304,19 @@ async function main() {
             if (index > 0) elapsedHours += between(2, 30);
             return {
               status: step,
-              changedById: admin.id,
-              note: step === 'CANCELLED' && cancelledAfterPaying ? 'Pago reembolsado' : null,
-              createdAt: new Date(createdAt.getTime() + elapsedHours * 3_600_000),
+              changedById: step === 'DELIVERED' ? courier.id : admin.id,
+              note:
+                step === 'CANCELLED' && cancelledAfterPaying
+                  ? 'Pago reembolsado'
+                  : step === 'SHIPPED'
+                    ? `Viajante: ${courier.name}`
+                    : step === 'DELIVERED'
+                      ? 'Entrega confirmada por el viajante'
+                      : null,
+              // Nunca en el futuro: cada paso queda al menos 1 min antes del siguiente y antes de "ahora".
+              createdAt: new Date(
+                Math.min(createdAt.getTime() + elapsedHours * 3_600_000, Date.now() - (steps.length - index) * 60_000),
+              ),
             };
           }),
         },
@@ -221,7 +324,9 @@ async function main() {
     });
   }
 
-  console.log(`✅ Listo. Ingresá con ${admin.email} / ${process.env.SEED_ADMIN_PASSWORD ?? 'Admin123!'}`);
+  console.log(
+    `✅ Listo. Ingresá con ${admin.email} / ${process.env.SEED_ADMIN_PASSWORD ?? 'Admin123!'} (viajante: ${courier.email} / Viajante123)`,
+  );
 }
 
 main()

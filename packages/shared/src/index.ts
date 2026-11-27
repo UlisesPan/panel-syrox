@@ -12,5 +12,6 @@ export * from './schemas/sale.js';
 export * from './schemas/customer.js';
 export * from './schemas/user.js';
 export * from './schemas/dashboard.js';
+export * from './schemas/upload.js';
 export * from './utils/variants.js';
 export * from './utils/slug.js';

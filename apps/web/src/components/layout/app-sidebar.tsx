@@ -14,16 +14,19 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { StoreLogo } from "@/components/brand/store-logo";
-import { navigation } from "@/config/navigation";
+import { homeFor, navigationFor } from "@/config/navigation";
+import { useSessionUser } from "@/features/auth/use-session";
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { data: user } = useSessionUser();
+  const items = user ? navigationFor(user.role) : [];
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="h-14 justify-center border-b">
-        <Link href="/" className="px-1 group-data-[collapsible=icon]:px-0">
+        <Link href={user ? homeFor(user.role) : "/"} className="px-1 group-data-[collapsible=icon]:px-0">
           <StoreLogo className="group-data-[collapsible=icon]:[&>span:last-child]:hidden" />
         </Link>
       </SidebarHeader>
@@ -31,7 +34,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigation.map((item) => (
+              {items.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={isActive(item.href)} tooltip={item.title}>
                     <Link href={item.href}>

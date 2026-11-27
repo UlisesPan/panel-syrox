@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   listQuerySchema,
@@ -57,5 +57,12 @@ export class SalesController {
     @Body({ schema: salePaymentUpdateSchema }) dto: z.output<typeof salePaymentUpdateSchema>,
   ) {
     return this.sales.updatePaymentStatus(id, dto.paymentStatus);
+  }
+
+  @Post(':id/delivery-code')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Genera un código de entrega nuevo y se lo reenvía al cliente por mail' })
+  resendDeliveryCode(@Param('id') id: string) {
+    return this.sales.resendDeliveryCode(id);
   }
 }

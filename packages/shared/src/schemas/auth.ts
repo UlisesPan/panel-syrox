@@ -58,8 +58,16 @@ export const profileUpdateSchema = z.object({
 
 export type ProfileUpdateInput = z.input<typeof profileUpdateSchema>;
 
+/**
+ * ADMIN: acceso completo al panel. COURIER ("viajante"): solo ve los envíos que tiene asignados
+ * y confirma la entrega con el código que recibe el cliente por mail.
+ */
+export const USER_ROLES = ['ADMIN', 'COURIER'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 export interface SessionUser {
   id: string;
   email: string;
   name: string;
+  role: UserRole;
 }

@@ -11,6 +11,7 @@ import type {
   SaleInput,
   SaleProductOption,
   SaleStatusUpdateInput,
+  User,
 } from "@panel/shared";
 import { apiFetch, getErrorMessage } from "@/lib/api-client";
 import { defineResource } from "@/lib/resource";
@@ -34,11 +35,15 @@ export function useSaleProductOptions(search: string) {
   });
 }
 
-function useSaleMutation<TBody extends object>(path: string, successMessage: (sale: SaleDetail) => string) {
+function useSaleMutation<TBody extends object>(
+  path: string,
+  successMessage: (sale: SaleDetail) => string,
+  method: "PATCH" | "POST" = "PATCH",
+) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string } & TBody) =>
-      apiFetch<SaleDetail>(`/sales/${id}/${path}`, { method: "PATCH", body }),
+      apiFetch<SaleDetail>(`/sales/${id}/${path}`, { method, body }),
     onSuccess: async (sale) => {
       toast.success(successMessage(sale));
       queryClient.setQueryData(salesResource.queryKeys.detail(sale.id), sale);
@@ -79,4 +84,24 @@ export function useUpdatePaymentStatus() {
     "payment",
     (sale) => `Venta #${sale.number}: pago ${paymentStatusMeta[sale.paymentStatus].label.toLowerCase()}`,
   );
+}
+
+export function useResendDeliveryCode() {
+  return useSaleMutation<object>(
+    "delivery-code",
+    (sale) => `Venta #${sale.number}: código nuevo enviado a ${sale.customerEmail}`,
+    "POST",
+  );
+}
+
+/** Viajantes disponibles para asignar un envío. */
+export function useCouriers(enabled = true) {
+  return useQuery({
+    queryKey: ["users", "couriers"],
+    queryFn: () =>
+      apiFetch<Paginated<User>>("/users", { params: { role: "COURIER", pageSize: 100, sortBy: "name", sortOrder: "asc" } }),
+    select: (page) => page.data,
+    enabled,
+    staleTime: 60_000,
+  });
 }

@@ -4,9 +4,21 @@
 import { useState } from "react";
 import { ImageOffIcon, PackageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { optimizedImage } from "@/lib/uploads";
 
 /** Miniatura de producto con placeholder si no hay imagen o si la URL falla. */
-export function ProductThumb({ src, alt, className }: { src?: string | null; alt: string; className?: string }) {
+export function ProductThumb({
+  src,
+  alt,
+  className,
+  size = 80,
+}: {
+  src?: string | null;
+  alt: string;
+  className?: string;
+  /** Tamaño a pedir a Cloudinary (px, ya contempla pantallas retina). */
+  size?: number;
+}) {
   const [failed, setFailed] = useState(false);
   return (
     <span
@@ -16,7 +28,7 @@ export function ProductThumb({ src, alt, className }: { src?: string | null; alt
       )}
     >
       {src && !failed ? (
-        <img src={src} alt={alt} className="size-full object-cover" loading="lazy" onError={() => setFailed(true)} />
+        <img src={optimizedImage(src, size)} alt={alt} className="size-full object-cover" loading="lazy" onError={() => setFailed(true)} />
       ) : failed ? (
         <ImageOffIcon className="size-4" />
       ) : (

@@ -16,7 +16,8 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
-import { navigation } from "@/config/navigation";
+import { navigationFor } from "@/config/navigation";
+import { useSessionUser } from "@/features/auth/use-session";
 
 const quickActions = [
   { label: "Generar venta", href: "/ventas/nueva", icon: ShoppingCartIcon },
@@ -28,6 +29,9 @@ export function CommandMenu() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { setTheme } = useTheme();
+  const { data: user } = useSessionUser();
+  const isAdmin = user?.role === "ADMIN";
+  const items = user ? navigationFor(user.role) : [];
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -65,17 +69,21 @@ export function CommandMenu() {
           <CommandInput placeholder="¿A dónde querés ir?" />
           <CommandList>
             <CommandEmpty>Sin resultados.</CommandEmpty>
-            <CommandGroup heading="Acciones">
-              {quickActions.map((action) => (
-                <CommandItem key={action.href} onSelect={() => run(() => router.push(action.href))}>
-                  <action.icon />
-                  {action.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            <CommandSeparator />
+            {isAdmin && (
+              <>
+                <CommandGroup heading="Acciones">
+                  {quickActions.map((action) => (
+                    <CommandItem key={action.href} onSelect={() => run(() => router.push(action.href))}>
+                      <action.icon />
+                      {action.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandSeparator />
+              </>
+            )}
             <CommandGroup heading="Ir a">
-              {navigation.map((item) => (
+              {items.map((item) => (
                 <CommandItem key={item.href} onSelect={() => run(() => router.push(item.href))}>
                   <item.icon />
                   {item.title}

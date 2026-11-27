@@ -1,20 +1,30 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { userCreateSchema, userUpdateSchema, type ListQuery, type Paginated, type User } from '@panel/shared';
+import {
+  userCreateSchema,
+  userFiltersSchema,
+  userUpdateSchema,
+  type ListQuery,
+  type Paginated,
+  type User,
+} from '@panel/shared';
 import type { z } from 'zod';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
+import { fieldError } from '../common/http/field-error.js';
 import { containsInsensitive, paginationArgs, resolveOrderBy, toPaginated } from '../common/http/pagination.js';
 
 type CreateDto = z.output<typeof userCreateSchema>;
 type UpdateDto = z.output<typeof userUpdateSchema>;
+type UserListQuery = ListQuery & z.output<typeof userFiltersSchema>;
 
 const select = {
   id: true,
   name: true,
   email: true,
+  role: true,
   createdAt: true,
-  _count: { select: { sales: true } },
+  _count: { select: { sales: true, deliveries: { where: { status: 'SHIPPED' } } } },
 } satisfies Prisma.UserSelect;
 type UserRow = Prisma.UserGetPayload<{ select: typeof select }>;
 
@@ -22,7 +32,9 @@ const toDto = (u: UserRow): User => ({
   id: u.id,
   name: u.name,
   email: u.email,
+  role: u.role,
   salesCount: u._count.sales,
+  pendingDeliveries: u._count.deliveries,
   createdAt: u.createdAt.toISOString(),
 });
 
@@ -33,15 +45,19 @@ export class UsersService {
     private readonly auth: AuthService,
   ) {}
 
-  async findAll(query: ListQuery): Promise<Paginated<User>> {
-    const where: Prisma.UserWhereInput = query.search
-      ? { OR: [{ name: containsInsensitive(query.search) }, { email: containsInsensitive(query.search) }] }
-      : {};
+  async findAll(query: UserListQuery): Promise<Paginated<User>> {
+    const where: Prisma.UserWhereInput = {
+      role: query.role,
+      ...(query.search && {
+        OR: [{ name: containsInsensitive(query.search) }, { email: containsInsensitive(query.search) }],
+      }),
+    };
     const orderBy = resolveOrderBy<Prisma.UserOrderByWithRelationInput>(
       query,
       {
         name: (dir) => ({ name: dir }),
         email: (dir) => ({ email: dir }),
+        role: (dir) => ({ role: dir }),
         createdAt: (dir) => ({ createdAt: dir }),
       },
       { createdAt: 'asc' },
@@ -68,13 +84,20 @@ export class UsersService {
     return toDto(user);
   }
 
-  async update(id: string, data: UpdateDto): Promise<User> {
-    await this.findOne(id);
+  async update(id: string, data: UpdateDto, currentUserId: string): Promise<User> {
+    const user = await this.findOne(id);
+    // Evita que el último admin conectado se quite el acceso a sí mismo.
+    if (id === currentUserId && user.role === 'ADMIN' && data.role !== 'ADMIN') {
+      throw new BadRequestException(fieldError('role', 'No podés quitarte el rol de administrador.'));
+    }
     await this.auth.assertEmailAvailable(data.email, id);
     return toDto(await this.prisma.user.update({ where: { id }, data, select }));
   }
 
-  /** Sus ventas e historial quedan sin autor (SET NULL); sus sesiones dejan de valer al no existir el usuario. */
+  /**
+   * Sus ventas e historial quedan sin autor y sus envíos sin viajante (SET NULL);
+   * sus sesiones dejan de valer al no existir el usuario.
+   */
   async remove(id: string, currentUserId: string): Promise<void> {
     if (id === currentUserId) throw new BadRequestException('No podés eliminar tu propio usuario.');
     await this.findOne(id);

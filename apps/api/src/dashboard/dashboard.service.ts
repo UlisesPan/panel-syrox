@@ -27,7 +27,7 @@ export class DashboardService {
         this.prisma.sale.findMany({
           orderBy: { createdAt: 'desc' },
           take: 5,
-          include: { _count: { select: { items: true } } },
+          include: { _count: { select: { items: true } }, courier: { select: { id: true, name: true } } },
         }),
         this.prisma.$queryRaw<Array<{ day: Date; revenue: string; count: bigint }>>`
           SELECT date_trunc('day', "createdAt") AS day, SUM(total)::text AS revenue, COUNT(*) AS count
